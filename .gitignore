@@ -39,3 +39,7 @@ vignettes/*.pdf
 .Renviron
 
 .DS_Strore
+
+.Heart_Science.html.icloud
+
+data/.DS_Store
