@@ -1,0 +1,474 @@
+---
+title: "Heart Disease Science"
+author: "Finn B"
+date: "1/17/2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: yes
+    theme: united
+    highlight: tango
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+    number_sections: yes
+urlcolor: orange
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, include=FALSE}
+if(!require(plyr)) install.packages("plyr", repos = "http://cran.us.r-project.org")
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(ggthemes)) install.packages("ggthemes", repos = "http://cran.us.r-project.org")
+if(!require(kableExtra)) install.packages("kableExtra", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
+if(!require(rpart.plot)) install.packages("rpart.plot", repos = "http://cran.us.r-project.org")
+
+library(plyr)
+library(tidyverse)
+library(ggplot2)
+library(ggthemes)
+library(kableExtra)
+library(caret)
+library(rpart)
+library(rpart.plot)
+```
+
+```{r digits, include=FALSE}
+options(digits = 3)
+```
+
+```{r readData, include=FALSE}
+HeartData <- read_csv("data/heart.csv")
+```
+
+# Introduction  
+
+The purpose of this report is the analysis and methodology of several health data of patients from 1988. The data shows if a patient has [heart disease](https://www.mayoclinic.org/diseases-conditions/heart-disease/symptoms-causes/syc-20353118). It describes a range of conditions that affect the heart. The data set used is a data set provided by **Donald Bren School of Information and Computer Sciences** from the **University of California, Irvine** originally. This project will concentrate on a database from the **V.A. Medical Center, Long Beach and Cleveland Clinic Foundation** provided created by **Robert Detrano, M.D., Ph.D.**. The data was sourced from [Kaggle](https://www.kaggle.com/ronitf/heart-disease-uci), where the data was initially processed.  
+Origin of this database: [Archive.ics.uci](https://archive.ics.uci.edu/ml/datasets/heart+disease)  
+
+# Data exploration and cleaning  
+## Data exploration
+
+This report excludes 62 attributes from the original database to work with a subset of 14 attributes, containing **13 features** and **one outcome variable** to consider if a patient has heart disease. The database contains health data of **303 patients**.  
+On a first view you can see what features will accompany the final outcome variable in this project. Before heading into the analysis we need to understand what the different attributes tell us:
+```{r strHeartData, echo=FALSE}
+head(HeartData)
+```
+
+Attribute   | Meaning
+----------- | --------
+age | Patients age (29-77 years)
+sex | Female (0) and Male (1)
+cp - **chest pain type** | asymptomatic (0); atypical angina (1); non-anginal pain (2); typical angina (3)
+trestbps - **resting blood pressure** | in mm/Hg on admission to the hospital^1^
+chol - **serum cholesterol** | in mg/dl
+fbs - **fasting blood sugar** | > 120 mg/dl; no(0) yes(1)
+restecg - **resting electrocardiographic results**| probable or definite left ventricular hypertrophy by Estes' criteria(0); normal(1); having ST-T wave abnormality(2)
+thalach | maximum heart rate achieved
+exang - **exercise induced angina** | no(0); yes(1)
+oldpeak | ST depression induced by exercise relative to rest
+slope - **slope of peak exercise ST segment** | downsloping(0); flat(1); upsloping(2)
+ca - **number of major vessels colored by flourosopy** | vessels(0-3); NA(4)
+thal - **Thalium Stress Test Result** | NA(0); fixed defect(1); normal(2); reversible defect(3)
+
+***
+
+^1^ Judging from the values, the [systolic pressure](https://www.nhs.uk/common-health-questions/lifestyle/what-is-blood-pressure/) (the pressure when the heart pushes blood out) is given here.
+
+## Data cleaning
+For data cleaning some data from the original data base will be changed. The levels of 'sex' will be changed to 'female' and 'male'. The levels of 'target' will be changed to 'disease' and 'no disease' to have a quiet better overview. Furthermore some of the attributes will be encoded as factors to enable a better work.  
+These vectors are: **sex, cp, fbs, restecg, exang, slope, ca, thal, disease(target)**.  
+```{r clean_sex, include=FALSE}
+HeartData <- HeartData %>%
+  mutate(sex=ifelse(sex==0, 'female', 'male'))
+HeartData$sex <- as.factor(HeartData$sex)
+```
+
+```{r clean_cp, include=FALSE}
+HeartData$cp <- as.factor(HeartData$cp)
+HeartData$cp <- revalue(HeartData$cp, c('0'='asymptomatic', '1'='atypical angina', '2'='non anginal pain', '3'='typical angina'))
+```
+
+```{r clean_fbs, include=FALSE}
+HeartData <- HeartData %>%
+  mutate(fbs=ifelse(fbs==1, '>120', '<=120'))
+HeartData$fbs <- as.factor(HeartData$fbs)
+```
+
+```{r clean_restecg, include=FALSE}
+HeartData$restecg <- as.factor(HeartData$restecg)
+HeartData$restecg <- revalue(HeartData$restecg, c('0'='left vetricular hypertrophy', '1'='normal', '2'='st-t abnormality'))
+```
+
+```{r clean_exang, include=FALSE}
+HeartData <- HeartData %>%
+  mutate(exang=ifelse(exang==0, 'no', 'yes'))
+HeartData$exang <- as.factor(HeartData$exang)
+```
+
+```{r clean_slope, include=FALSE}
+HeartData$slope <- as.factor(HeartData$slope)
+HeartData$slope <- revalue(HeartData$slope, c('0'='downsloping', '1'='flat', '2'='upsloping'))
+```
+
+```{r clean_ca, include=FALSE}
+HeartData$ca <- as.factor(HeartData$ca)
+HeartData$ca <- revalue(HeartData$ca, c('4'=NA))
+```
+
+```{r clean_thal, include=FALSE}
+HeartData$thal <- as.factor(HeartData$thal)
+HeartData$thal <- revalue(HeartData$thal, c('0'=NA, '1'='fixed defect', '2'='normal', '3'='reversible defect'))
+```
+
+```{r clean_disease, include=FALSE}
+HeartData <- HeartData %>%
+  mutate(target=ifelse(target==0, "disease", "no disease"))
+HeartData$target <- as.factor(HeartData$target)
+HeartData$disease <- HeartData$target
+HeartData$target <- NULL
+attr(HeartData, 'spec') <- NULL
+```
+
+```{r test}
+str(HeartData)
+```
+# Data analysis  
+In this part of the project we will dig deeper into the attributes and potential effects on the disease. But first we will have a look on the most obvious and superficial indicators: Age and Sex.  
+
+## Age  
+
+```{r age_summary, echo=FALSE, message=FALSE}
+summary(HeartData$age)
+```
+
+```{r age_dist, echo=FALSE, message=FALSE}
+HeartData %>%
+  mutate(age_rnd=round(age, digits=-1)) %>%
+  group_by(age_rnd) %>%
+  summarize(count=n()) %>%
+  ggplot(aes(age_rnd, count, fill="darkred")) +
+  geom_bar(stat="identity") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  xlab("age")
+```
+
+\  
+
+The age range goes from 29 years to 77 year. The median age is at 55 years, while we can see that the most patients are between 55 and 65 years.
+
+## Sex  
+
+```{r sex_count, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(sex) %>%
+  summarize('count'=n()) %>%
+  knitr::kable() %>% 
+  kable_styling(full_width = FALSE)
+```
+
+\  
+
+The distribution by sex is dominated by male patients, around 68% of the patients are male.  
+The mean age of female patients is quite lower than the mean age of male patients.  
+
+This can be seen in the mean of patients that have heart diseases as well:  
+**female:**  
+```{r summary_female_age, echo=FALSE}
+hd_female <- HeartData %>%
+  filter(sex=="female" & disease=="disease")
+
+
+hd_female$age %>%  
+  summary()
+```
+
+**male:**  
+```{r summary_male_age, echo=FALSE}
+hd_male <- HeartData %>%
+  filter(sex=="male" & disease=="disease")
+
+hd_male$age %>%  
+  summary()
+```
+
+```{r sex_age_count, echo=FALSE, message=FALSE}
+HeartData %>%
+  mutate(age_rnd=round(age, digits=-1)) %>%
+  group_by(age_rnd, sex) %>%
+  summarize(count=n()) %>%
+  ggplot(aes(x=age_rnd, y=count, fill=sex)) +
+  geom_bar(stat="identity", position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("age")
+```
+
+\  
+
+As we can see in the following plot there are much more female patients without heart disease than with heart disease. Furthermore the number of male patients with and without diseases seem to be similar while there are more male patients around 60 with heart disease.  
+```{r sex_age_disease, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(sex, age) %>%
+  ggplot(aes(x=sex, y=age, fill=disease)) +
+  geom_dotplot(binaxis = "y", 
+               stackdir = "center", 
+               alpha=0.7, 
+               binwidth = 1.5) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text())
+```
+
+\  
+
+## Chest pain type  
+
+As previously researched, there are four types of chest pain. **Asymptomatic** pain means that a patient has no symptoms/pain. [Angina](https://www.mayoclinic.org/diseases-conditions/angina/symptoms-causes/syc-20369373) is a pain that the patient has near the heart, often described as chest tightness. Angina pain is categorized into **atypical** angina and **typical** angina.  
+Most patients data shows asymptomatic and non anginal pain. Only a small amount of patients had typical angina:  
+```{r cp_dist, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(cp) %>%
+  summarize(count=n()) %>%
+  ggplot(aes(cp, count, fill=cp)) +
+  geom_bar(stat="identity") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  xlab("chest pain type")
+```
+
+\  
+
+Something that may not have been expected by many is the following result. Except of asymptomatic pain the proportion of patients with disease is far below 50% for each category of pain.  
+```{r cp_disease_calc, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by('chest pain'=cp) %>%
+  summarize('disease (prop)'=mean(disease=="disease")) %>%
+  knitr::kable() %>% 
+  kable_styling(full_width = FALSE)
+```
+```{r cp_disease_dist, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(cp, disease) %>%
+  summarize(count=n()) %>%
+  ggplot(aes(cp, count, fill=disease)) +
+  geom_bar(stat="identity", position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("chest pain type")
+```
+
+## Resting blood pressure  
+For most patients (68%) the blood pressure is higher than the ideal systolic blood pressure of between 90 and 120mm/Hg. In the second plot we can observe an increasing proportion of disease with a higher systolic resting blood pressure.
+```{r ideal_trestbps_prop, echo=FALSE}
+HeartData %>%
+  summarize("resting blood pressure >120mm/Hg"=mean(trestbps>120)) %>%
+knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+```{r trestbps_disease_dist, echo=FALSE, message=FALSE}
+HeartData %>%
+  mutate(trestbps_rnd=round(trestbps, digits=-1)) %>%
+  group_by(trestbps_rnd, disease) %>%
+  summarize(count=n()) %>%
+  ggplot(aes(trestbps_rnd, count, fill=disease)) +
+  geom_bar(stat="identity", position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("resting blood pressure")
+```
+
+```{r trestbps_disease_age, echo=FALSE, message=FALSE}
+HeartData %>%
+  mutate(trestbps_rnd=round(trestbps, digits=-1)) %>%
+  group_by(trestbps_rnd) %>%
+  summarize(prop_disease=mean(disease=="disease"), 
+            prop_age=round(mean(age), digits = 0), 
+            count=n()) %>%
+  filter(count>=5) %>%
+  ggplot(aes(trestbps_rnd, prop_disease, fill="")) +
+  geom_bar(stat="identity") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("resting blood pressure") +
+  ylab("proportion disease") +
+  theme(legend.position = "none")
+```
+
+## Serum cholesterol  
+Since there is too little information about what type of cholesterol level is given we assume total cholesterol. [Healthy cholesterol level](https://medlineplus.gov/cholesterollevelswhatyouneedtoknow.html) for adults is between 125mg/dL and 200mg/dL.
+
+Most patients serum cholesterol is higher than the healthy range:  
+```{r chol, echo=FALSE, message=FALSE}
+HeartData %>%
+  mutate(chol_rnd=round(chol, digits=-1)) %>%
+  group_by(chol_rnd) %>%
+  ggplot(aes(x=chol_rnd, y = ..prop.., fill=ifelse(chol<=200, "Normal","Highlighted"))) +
+  geom_bar() +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  xlab("serum cholesterol") +
+  ylab("percentage") +
+  geom_vline(xintercept = 125) +
+  geom_vline(xintercept = 200)
+```
+
+## Fasting blood sugar  
+Normal [blood sugar levels](https://www.diabetes.co.uk/diabetes_care/blood-sugar-level-ranges.html) of **non-diabetic** people are between **72mg/dL** and **99mg/dL** when fasting. Fasting blood sugar levels of **100mg/dL** up to **125mg/dL** are already described as **prediabetic**, while **fbs > 125mg/dL** are diagnosed as **diabetic**.  
+The study shows two possible outcomes of **fbs**: **<= 120mg/dL** and **>120mg/dL**.It must be considered, that people with a **fbs >120mg/dL** are at greater risk of developing heart disease or [cardiovascular disease](https://www.nhs.uk/conditions/cardiovascular-disease/), however the symptoms of the patient may be caused by diabetes and secondary diseases.  
+
+Only a few patients have blood sugar levels in the range where diabetes would be diagnosed. The number of patients with and without disease are similar. The most patients have fasting blood sugar levels of 120 and lower.  
+```{r fbs_disease, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(fbs, disease) %>%
+  summarize(count=n()) %>%
+  ggplot(aes(fbs, count, fill=disease)) +
+  geom_bar(stat="identity", position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("fasting blood sugar (mg/dL)")
+```
+
+```{r fbs_prev, include=FALSE}
+HeartData %>%
+  summarize(mean(fbs==">120"))
+```
+
+There were 14.90% of patients with a critical value of fasting blood sugar level in the database, while the prevalence of diabetes in the US was 4.90%^2^ in the year 1990. So we can observe a much higher prevalence in the study from 1988.  
+
+^2^[Diabetes trends in the U.S.: 1990-1998](https://care.diabetesjournals.org/content/23/9/1278#:~:text=RESULTS%3A%20The%20prevalence%20of%20diabetes,levels%2C%20and%20nearly%20all%20states.)  
+
+## Resting electrocardiographic results  
+As results of the [restecg](https://www.mayoclinic.org/tests-procedures/ekg/about/pac-20384983) there are three potential outcomes:  
+
+* **left ventricular hypertrophy:**  
+[Left ventricular hypertrophy](https://www.mayoclinic.org/diseases-conditions/left-ventricular-hypertrophy/symptoms-causes/syc-20374314) is enlargement and thickening (hypertrophy) of the walls of the heart's main pumping chamber.
+* **Normal:**  
+No abnormalities or hypertrophies.
+* **Having ST-T wave abnormality:**  
+Abnormalities of **ST-** and/or **T wave** in the imaging procedures of the electrocardiogram.
+
+```{r restecg_disease, echo=FALSE}
+HeartData %>%
+  ggplot(aes(x=restecg, 
+             y=..count.., 
+             fill=disease)) +
+  geom_bar(position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text())
+```
+
+## THALACH  
+THALACH is the **maximum heart rate** that has been achieved of each patient.  
+We observe a lower maximum heart rate for patients with disease than without disease:  
+```{r disease_thalach, echo=FALSE, message=FALSE}
+HeartData %>%
+  ggplot(aes(x=disease, y=thalach, color=disease)) +
+  geom_jitter(width = 0.3, alpha = 0.3, size=4) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  ylab("thalach")
+```
+
+```{r thalach_mean_median, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(disease) %>%
+  summarize(mean=mean(thalach), median=median(thalach)) %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+As you can see in the next chart the average maximum heart rate decreases with age. An interesting abnormality is that patients with heart disease show a lower maximum heart rate at almost any age.  
+```{r age_mean_thalach_disease, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(age, disease) %>%
+  summarize(count=n(), mean_thalach=mean(thalach)) %>%
+  filter(count>1) %>%
+  ggplot(aes(x=age, y=mean_thalach, color=disease)) +
+  geom_point() +
+  geom_smooth(span = 0.5) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  ylab("thalach (mean)")
+```
+
+## Exercise induced angina  
+We can assume that angina indicates heart disease at exercise more often than without. We can tell by the fact that most patients with exercise induced angina had heart disease but only a minority of patients with heart disease had angina outside the exercises, most were asymptomatic^3^.
+```{r exang_disease, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(exang, disease) %>%
+  ggplot(aes(exang, ..count.., fill=disease)) +
+  geom_bar(position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  ylab("exercise induced angina")
+```
+
+^3^3.3 chest pain type and disease
+
+## ST depression induced by exercise relative to rest  
+We can say that a greater [ST depression](https://litfl.com/st-segment-ecg-library/) is a sign of an increased probability of heart disease. The following findings from the database show, that the ST depression increase at exercise for patients with heart disease is greather than for patients without heart disease:  
+```{r disease_oldpeak, echo=FALSE, message=FALSE}
+HeartData %>%
+  ggplot(aes(disease, oldpeak, color=disease)) +
+  geom_jitter(width = 0.4, alpha = 0.3, size=4) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  ylab("ST depression (relative)")
+```
+
+```{r oldpeak_mean_median, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(disease) %>%
+  summarize(mean=mean(oldpeak), median=median(oldpeak)) %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+Mean and median show increased values of ST depression relation in people with heart disease than in people without heart disease.  
+
+## Slope of peak exercise ST segment  
+```{r slope_disease, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(slope, disease) %>%
+  ggplot(aes(slope, ..count.., fill=disease)) +
+  geom_bar(position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("slope of ST segment")
+```
+
+## Major vessels colored by flourosopy  
+
+```{r ca_disease, echo=FALSE, message=FALSE}
+HeartData %>%
+  filter(!is.na(ca)) %>%
+    group_by(ca) %>%
+    ggplot(aes(ca, ..count.., fill=disease)) +
+    geom_bar(position="dodge") +
+    theme_fivethirtyeight() +
+    theme(axis.title = element_text()) +
+    xlab("colored vessels")
+```
+
+## Thalium Stress Test Result  
+
+```{r thal_disease, echo=FALSE, message=FALSE}
+HeartData %>%
+  filter(!is.na(thal)) %>%
+    group_by(thal) %>%
+    ggplot(aes(thal, ..count.., fill=disease)) +
+    geom_bar(position="dodge") +
+    theme_fivethirtyeight() +
+    theme(axis.title = element_text()) +
+    xlab("thalium stress test result")
+```
+
+# Methods  
+# Results
+# Conclusion
