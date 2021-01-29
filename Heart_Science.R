@@ -1,3 +1,4 @@
+library(psych)
 library(plyr)
 library(tidyverse)
 library(ggthemes)
@@ -5,18 +6,29 @@ library(kableExtra)
 library(caret)
 library(rpart)
 library(rpart.plot)
+library(naivebayes)
+library(skimr)
+library(rattle)
+library(randomForest)
+library(rafalib)
 #library(wesanderson)
 #library(magrittr)
 
 options(digits = 3)
 
-HeartData <- read_csv('data/heart.csv')
+HeartData <- read_csv('data/heartdata.csv')
 
 #subset of original 76 attributes - 13 features, 1 outcome
 ncol(HeartData)
 
 #Number of instances
 nrow(HeartData)
+
+#skim data
+skim(HeartData)
+
+#correlations of variables
+pairs.panels(HeartData[])
 
 #factorize attributes
 #age: age in years
@@ -373,28 +385,105 @@ HeartData %>%
   theme_fivethirtyeight() +
   theme(axis.title = element_text())
 
-HeartData %>%
-  mutate(age_rnd=round(age, digits=-1)) %>%
-  ggplot(aes(age, ))
+#find and remove NA values
+sum(is.na(HeartData))
+HeartDataRM <-HeartData[complete.cases(HeartData), ]
 
 #Modeling
 #setting seed
 set.seed(2)
 
-test_index <- createDataPartition(y = HeartData$disease, times = 1, p = 0.2, list = FALSE)
-train_set <- HeartData[-test_index,]
-test_set <- HeartData[test_index,]
+test_index <- createDataPartition(y = HeartDataRM$disease, times = 1, p = 0.2, list = FALSE)
+training <- HeartDataRM[-test_index,]
+testing <- HeartDataRM[test_index,]
 
-dec_tree_disease <- train_set %>%
-  rpart(disease ~ ., data=., model=TRUE)
-rpart.plot(dec_tree_disease)
-
-dec_tree_disease_pred <- predict(dec_tree_disease, test_set, type="class")
-confusionMatrix(table(dec_tree_disease_pred, test_set$disease))
-# #Example for k-fold cross validation and knn using it
 # #10-FOLD CROSS VALIDATION
-# control <- trainControl(method = "cv", number = 10, p = .9)
-# 
+control <- trainControl(method = "cv", 
+                        number = 10, 
+                        p = .9)
+control.repeat <- trainControl(method = "repeatedcv", 
+                               number = 10, 
+                               repeats = 3, 
+                               seed = 2)
+
+# #naive bayes
+# heartdata_naive_bayes <- naive_bayes(disease ~., data=training)
+# plot(heartdata_naive_bayes)
+# predict_heartdata_naive_bayes <- predict(heartdata_naive_bayes, testing)
+
+#decision tree
+Train.dec.tree <- training %>%
+  rpart(disease ~ ., data=.,
+        model=TRUE)
+Model.dec.tree <- predict(Train.dec.tree, testing, type="class")
+confusionMatrix(table(Model.dec.tree, testing$disease))
+#rpart.plot(Train.dec.tree)
+fancyRpartPlot(Train.dec.tree, sub="") #example: 90% have disease at thal=(fixed defect, reversible defect) and cp=asymptomatic); 30% of all patients have thal=(fixed defect, reversible defect), cp=asymptomatic)
+
+# #decision tree with train function (wont work with rpart.plot)
+# Train.dec.tree <- train(disease ~ ., data=training,
+#                         method="rpart",
+#                         model=TRUE,
+#                         tuneLength = 10,
+#                         parms=list(split='information'))
+# Model.dec.tree <- predict(Train.dec.tree, testing, type="raw")
+# confusionMatrix(table(Model.dec.tree, testing$disease))
+# plot(Train.dec.tree$finalModel, uniform=TRUE)
+# text(Train.dec.tree$finalModel, use.n = TRUE, all=TRUE, cex=.8)
+
+#random forest
+Train.random.forest <- randomForest(disease ~ ., data=training,
+                                    ntree=1000, 
+                                    importance=TRUE,
+                                    trControl=control,
+                                    tuneGrid = data.frame(mtry = sqrt(ncol(training))))
+tTrain.random.forest <- train(disease ~ ., data=training, 
+                             method="rf", 
+                             metric="Accuracy", 
+                             ntree=1000,
+                             importance=TRUE,
+                             trControl=control,
+                             tuneGrid = data.frame(mtry = sqrt(ncol(training))))
+importance(Train.random.forest)
+Model.random.forest <- predict(Train.random.forest, testing, type="response")
+Model.random.forest <- predict(tTrain.random.forest, testing, type="raw")
+confusionMatrix(Model.random.forest, testing$disease)#$overall["Accuracy"]
+
+#plot trees vs errors
+rafalib::mypar()
+plot(Train.random.forest)
+
+#result of random forest
+Result.random.forest <- data.frame(testing$disease, Model.random.forest)
+plot(Result.random.forest)
+
+# #optimize node size:
+# nodesize <- seq(0, 50, 2)
+# node_maxsize <- sapply(nodesize, function(ns){
+#   train(disease ~ ., data=training, 
+#         method="rf", 
+#         metric="Accuracy", 
+#         tuneGrid = data.frame(mtry = sqrt(ncol(training))),
+#         ntree=500)$overall$accuracy
+#   })
+# qplot(nodesize, node_maxsize)
+#optimize n:
+nsize <- seq(500, 1500, 100)
+n_maxacc <- sapply(nsize, function(nz) {
+  train(disease ~ ., data=training, 
+        method="rf", 
+        metric="Accuracy", 
+        tuneGrid = data.frame(mtry = sqrt(ncol(training))),
+        ntree=nz)$results$Accuracy
+})
+qplot(nsize, n_maxacc) #opt acc at n=1200
+#optimize mtry:
+Train.mtry <- train(disease ~ ., data=training, 
+        method="rf", 
+        metric="Accuracy", 
+        tuneGrid = expand.grid(.mtry=c(1:13),.ntree=c(500,1000,1500)))$results$Accuracy
+plot(Train.mtry)
+
 # #KNN train just for investigation purposes (needs long time)
 # m_knn <- train_set %>%
 #   train(manhattan~longitude+latitude,
@@ -405,3 +494,44 @@ confusionMatrix(table(dec_tree_disease_pred, test_set$disease))
 #   )
 # m_p_hat_knn <- predict(m_knn, test_set, type = "raw")
 # confusionMatrix(m_p_hat_knn, test_set$manhattan)#$overall["Accuracy"]
+
+#svm (polynomial kernel)
+#! svmLinear: C (cost) needed
+#  svmRadial: C (cost), sigma needed
+#  svmPoly:   C (cost), sigma, 
+# Build Training model
+#train svmLinear
+train.svmLinear <- train(disease ~ ., data=training,
+                          method = "svmLinear",
+                          trControl= trainControl(method="none"),
+                          preProcess=c("center", "scale"),
+                          tuneLength = 10)
+Model.svmLinear <- predict(train.svmLinear, testing)
+confusionMatrix(Model.svmLinear, testing$disease)
+#train svmLinear (cv)
+train.svmLinear.cv <- train(disease ~ ., data=training,
+                               method = "svmLinear",
+                               trControl= control,
+                               preProcess=c("center", "scale"),
+                               tuneLength = 10)
+#apply model on testing
+Model.svmLinear.cv <- predict(train.svmLinear.cv, testing)
+confusionMatrix(Model.svmLinear.cv, testing$disease)
+#train svmPoly
+train.svmPoly <- train(disease ~ ., data = training,
+               method = "svmPoly",
+               preProcess=c("scale","center"),
+               trControl= trainControl(method="none"),
+               tuneGrid = data.frame(degree=1,scale=1,C=1))
+#apply model on testing
+Model.svmPoly <- predict(train.svmPoly, testing) 
+confusionMatrix(Model.svmPoly, testing$disease)
+#train svmPoly (cv)
+train.svmPoly.cv <- train(disease ~ ., data = training,
+                  method = "svmPoly",
+                  preProcess=c("center", "scale"),
+                  trControl= control,
+                  tuneLength = 10)
+#apply model on testing
+Model.svmPoly.cv <- predict(train.svmPoly.cv, testing) 
+confusionMatrix(Model.svmPoly.cv, testing$disease)

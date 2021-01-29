@@ -3,16 +3,15 @@ title: "Heart Disease Science"
 author: "Finn B"
 date: "1/17/2021"
 output:
+  pdf_document: default
+  toc: yes
+  toc_depth: '3'
+  number_sections: yes
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
   html_document:
-    toc: yes
-    toc_depth: 3
-    number_sections: yes
-    theme: united
-    highlight: tango
-  pdf_document:
-    toc: yes
-    toc_depth: '3'
-    number_sections: yes
+    df_print: paged
 urlcolor: orange
 ---
 
@@ -44,7 +43,7 @@ options(digits = 3)
 ```
 
 ```{r readData, include=FALSE}
-HeartData <- read_csv("data/heart.csv")
+HeartData <- read_csv("data/heartdata.csv")
 ```
 
 # Introduction  
