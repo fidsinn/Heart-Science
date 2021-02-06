@@ -3,16 +3,17 @@ title: "Heart Disease Science"
 author: "Finn B"
 date: "1/17/2021"
 output:
-  pdf_document: default
-  toc: yes
-  toc_depth: '3'
-  number_sections: yes
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '3'
+    number_sections: yes
   prettydoc::html_pretty:
     theme: hpstr
     highlight: github
-  html_document:
-    df_print: paged
+  pdf_document: default
 urlcolor: orange
+linkcolor: purple
 ---
 
 ```{r setup, include=FALSE}
@@ -21,21 +22,21 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r libraries, include=FALSE}
 if(!require(plyr)) install.packages("plyr", repos = "http://cran.us.r-project.org")
-if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
-if(!require(ggthemes)) install.packages("ggthemes", repos = "http://cran.us.r-project.org")
-if(!require(kableExtra)) install.packages("kableExtra", repos = "http://cran.us.r-project.org")
-if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
-if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
-if(!require(rpart.plot)) install.packages("rpart.plot", repos = "http://cran.us.r-project.org")
 
+library(psych)
 library(plyr)
 library(tidyverse)
-library(ggplot2)
 library(ggthemes)
 library(kableExtra)
+library(rafalib)
+library(kernlab)
 library(caret)
 library(rpart)
 library(rpart.plot)
+library(naivebayes)
+library(skimr)
+library(rattle)
+library(randomForest)
 ```
 
 ```{r digits, include=FALSE}
@@ -46,18 +47,94 @@ options(digits = 3)
 HeartData <- read_csv("data/heartdata.csv")
 ```
 
+![](./resources/title.png)
+
 # Introduction  
 
 The purpose of this report is the analysis and methodology of several health data of patients from 1988. The data shows if a patient has [heart disease](https://www.mayoclinic.org/diseases-conditions/heart-disease/symptoms-causes/syc-20353118). It describes a range of conditions that affect the heart. The data set used is a data set provided by **Donald Bren School of Information and Computer Sciences** from the **University of California, Irvine** originally. This project will concentrate on a database from the **V.A. Medical Center, Long Beach and Cleveland Clinic Foundation** provided created by **Robert Detrano, M.D., Ph.D.**. The data was sourced from [Kaggle](https://www.kaggle.com/ronitf/heart-disease-uci), where the data was initially processed.  
 Origin of this database: [Archive.ics.uci](https://archive.ics.uci.edu/ml/datasets/heart+disease)  
+First step is exploration and cleaning of the dataset. After that, each attribute is examined for its relation to the target variable. In the section of modeling several classification methods are run through to predict whether a patient has heart disease or not. The methods used are **decision tree**, **random forest**, **support vector machines** and **k-nearest neighbors**.
 
 # Data exploration and cleaning  
 ## Data exploration
 
 This report excludes 62 attributes from the original database to work with a subset of 14 attributes, containing **13 features** and **one outcome variable** to consider if a patient has heart disease. The database contains health data of **303 patients**.  
 On a first view you can see what features will accompany the final outcome variable in this project. Before heading into the analysis we need to understand what the different attributes tell us:
-```{r strHeartData, echo=FALSE}
-head(HeartData)
+```{r headHeartData, echo=FALSE}
+head(HeartData) %>% 
+  knitr::kable() %>%
+  kableExtra::kable_styling(latex_options="scale_down")
+```
+
+## Data cleaning
+For data cleaning some data from the original data base was changed. The levels of 'sex' were changed to 'female' and 'male'. The levels of 'target' were changed to 'disease' and 'no disease' to have a quiet better overview. Furthermore some of the attributes were encoded as factors to enable a better work: **sex, cp, fbs, restecg, exang, slope, ca, thal, disease(target)**.  
+
+```{r clean_sex, echo=TRUE, results="hidden"}
+HeartData <- HeartData %>%
+  mutate(sex=ifelse(sex==0, 'female', 'male'))
+HeartData$sex <- as.factor(HeartData$sex)
+```
+
+```{r clean_cp, echo=TRUE, results="hidden"}
+HeartData$cp <- as.factor(HeartData$cp)
+HeartData$cp <- revalue(HeartData$cp, c('0'='asymptomatic',
+                                        '1'='atypical angina',
+                                        '2'='non anginal pain',
+                                        '3'='typical angina'))
+```
+
+```{r clean_fbs, echo=TRUE, results="hidden"}
+HeartData <- HeartData %>%
+  mutate(fbs=ifelse(fbs==1, 
+                    '>120', 
+                    '<=120'))
+HeartData$fbs <- as.factor(HeartData$fbs)
+```
+
+```{r clean_restecg, echo=TRUE, results="hidden"}
+HeartData$restecg <- as.factor(HeartData$restecg)
+HeartData$restecg <- revalue(HeartData$restecg, c('0'='left vetricular hypertrophy',
+                                                  '1'='normal',
+                                                  '2'='st-t abnormality'))
+```
+
+```{r clean_exang, echo=TRUE, results="hidden"}
+HeartData <- HeartData %>%
+  mutate(exang=ifelse(exang==0, 
+                      'no', 
+                      'yes'))
+HeartData$exang <- as.factor(HeartData$exang)
+```
+
+```{r clean_slope, echo=TRUE, results="hidden"}
+HeartData$slope <- as.factor(HeartData$slope)
+HeartData$slope <- revalue(HeartData$slope, c('0'='downsloping',
+                                              '1'='flat',
+                                              '2'='upsloping'))
+```
+
+```{r clean_ca, echo=TRUE, results="hidden"}
+HeartData$ca <- as.factor(HeartData$ca)
+HeartData$ca <- revalue(HeartData$ca, c('4'=NA))
+```
+
+```{r clean_thal, echo=TRUE, results="hidden"}
+HeartData$thal <- as.factor(HeartData$thal)
+HeartData$thal <- revalue(HeartData$thal, c('0'=NA,
+                                            '1'='fixed defect',
+                                            '2'='normal',
+                                            '3'='reversible defect'))
+```
+
+```{r clean_disease, echo=TRUE, results="hidden"}
+HeartData <- HeartData %>%
+  mutate(target=ifelse(target==0, 
+                       "disease", 
+                       "no disease"))
+HeartData$target <- as.factor(HeartData$target)
+HeartData$disease <- HeartData$target
+HeartData$target <- NULL
+attr(HeartData, 'spec') <- NULL
 ```
 
 Attribute   | Meaning
@@ -73,73 +150,35 @@ thalach | maximum heart rate achieved
 exang - **exercise induced angina** | no(0); yes(1)
 oldpeak | ST depression induced by exercise relative to rest
 slope - **slope of peak exercise ST segment** | downsloping(0); flat(1); upsloping(2)
-ca - **number of major vessels colored by flourosopy** | vessels(0-3); NA(4)
+ca - **number of major vessels colored by flouroscopy** | vessels(0-3); NA(4)
 thal - **Thalium Stress Test Result** | NA(0); fixed defect(1); normal(2); reversible defect(3)
+disease - **angiographic disease status** | > 50% diameter narrowing (0); < 50% diameter narrowing (1)
 
 ***
 
 ^1^ Judging from the values, the [systolic pressure](https://www.nhs.uk/common-health-questions/lifestyle/what-is-blood-pressure/) (the pressure when the heart pushes blood out) is given here.
 
-## Data cleaning
-For data cleaning some data from the original data base will be changed. The levels of 'sex' will be changed to 'female' and 'male'. The levels of 'target' will be changed to 'disease' and 'no disease' to have a quiet better overview. Furthermore some of the attributes will be encoded as factors to enable a better work.  
-These vectors are: **sex, cp, fbs, restecg, exang, slope, ca, thal, disease(target)**.  
-```{r clean_sex, include=FALSE}
-HeartData <- HeartData %>%
-  mutate(sex=ifelse(sex==0, 'female', 'male'))
-HeartData$sex <- as.factor(HeartData$sex)
+```{r headHeartData2, echo=FALSE}
+head(HeartData) %>% 
+  knitr::kable() %>%
+  kableExtra::kable_styling(latex_options="scale_down")
 ```
 
-```{r clean_cp, include=FALSE}
-HeartData$cp <- as.factor(HeartData$cp)
-HeartData$cp <- revalue(HeartData$cp, c('0'='asymptomatic', '1'='atypical angina', '2'='non anginal pain', '3'='typical angina'))
-```
-
-```{r clean_fbs, include=FALSE}
-HeartData <- HeartData %>%
-  mutate(fbs=ifelse(fbs==1, '>120', '<=120'))
-HeartData$fbs <- as.factor(HeartData$fbs)
-```
-
-```{r clean_restecg, include=FALSE}
-HeartData$restecg <- as.factor(HeartData$restecg)
-HeartData$restecg <- revalue(HeartData$restecg, c('0'='left vetricular hypertrophy', '1'='normal', '2'='st-t abnormality'))
-```
-
-```{r clean_exang, include=FALSE}
-HeartData <- HeartData %>%
-  mutate(exang=ifelse(exang==0, 'no', 'yes'))
-HeartData$exang <- as.factor(HeartData$exang)
-```
-
-```{r clean_slope, include=FALSE}
-HeartData$slope <- as.factor(HeartData$slope)
-HeartData$slope <- revalue(HeartData$slope, c('0'='downsloping', '1'='flat', '2'='upsloping'))
-```
-
-```{r clean_ca, include=FALSE}
-HeartData$ca <- as.factor(HeartData$ca)
-HeartData$ca <- revalue(HeartData$ca, c('4'=NA))
-```
-
-```{r clean_thal, include=FALSE}
-HeartData$thal <- as.factor(HeartData$thal)
-HeartData$thal <- revalue(HeartData$thal, c('0'=NA, '1'='fixed defect', '2'='normal', '3'='reversible defect'))
-```
-
-```{r clean_disease, include=FALSE}
-HeartData <- HeartData %>%
-  mutate(target=ifelse(target==0, "disease", "no disease"))
-HeartData$target <- as.factor(HeartData$target)
-HeartData$disease <- HeartData$target
-HeartData$target <- NULL
-attr(HeartData, 'spec') <- NULL
-```
-
-```{r test}
-str(HeartData)
-```
 # Data analysis  
-In this part of the project we will dig deeper into the attributes and potential effects on the disease. But first we will have a look on the most obvious and superficial indicators: Age and Sex.  
+In this part of the project we will dig deeper into the attributes and potential effects on the disease. But first we will have a look on the categorization of disease and on the most obvious and superficial indicators: Age and Sex.  
+
+## Disease
+
+To determine the diagnosis of heart disease status the [angiographic disease](https://www.mayoclinic.org/tests-procedures/coronary-angiogram/about/pac-20384904) status was used. This was differentiated into two conditions that differ in the percentage diameter narrowing of <50% and >50% of coronary arteries.
+```{r disease_summary, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(disease) %>%
+  summarize("cases"=n()) %>%
+  knitr::kable() %>% 
+  kable_styling(full_width = FALSE)
+```
+
+As we can see the proportion of patients with disease was at 45.50% in the database.
 
 ## Age  
 
@@ -162,6 +201,15 @@ HeartData %>%
 \  
 
 The age range goes from 29 years to 77 year. The median age is at 55 years, while we can see that the most patients are between 55 and 65 years.
+
+```{r disease_age, echo=FALSE}
+HeartData %>%
+  group_by(disease, age) %>%
+  ggplot(aes(disease, age, col=disease)) +
+  geom_violin(alpha=0.3) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text())
+```
 
 ## Sex  
 
@@ -227,7 +275,7 @@ HeartData %>%
 
 \  
 
-## Chest pain type  
+## Chest pain type {#cp}  
 
 As previously researched, there are four types of chest pain. **Asymptomatic** pain means that a patient has no symptoms/pain. [Angina](https://www.mayoclinic.org/diseases-conditions/angina/symptoms-causes/syc-20369373) is a pain that the patient has near the heart, often described as chest tightness. Angina pain is categorized into **atypical** angina and **typical** angina.  
 Most patients data shows asymptomatic and non anginal pain. Only a small amount of patients had typical angina:  
@@ -235,11 +283,12 @@ Most patients data shows asymptomatic and non anginal pain. Only a small amount 
 HeartData %>%
   group_by(cp) %>%
   summarize(count=n()) %>%
-  ggplot(aes(cp, count, fill=cp)) +
+  ggplot(aes(cp, count, fill=count)) +
   geom_bar(stat="identity") +
   theme_fivethirtyeight() +
   theme(axis.title = element_text(), legend.position = "none") +
-  xlab("chest pain type")
+  xlab("chest pain type") +
+  scale_fill_gradient(low="purple", high="red")
 ```
 
 \  
@@ -252,6 +301,7 @@ HeartData %>%
   knitr::kable() %>% 
   kable_styling(full_width = FALSE)
 ```
+
 ```{r cp_disease_dist, echo=FALSE, message=FALSE}
 HeartData %>%
   group_by(cp, disease) %>%
@@ -263,7 +313,7 @@ HeartData %>%
   xlab("chest pain type")
 ```
 
-## Resting blood pressure  
+## Resting blood pressure {#trestbps}  
 For most patients (68%) the blood pressure is higher than the ideal systolic blood pressure of between 90 and 120mm/Hg. In the second plot we can observe an increasing proportion of disease with a higher systolic resting blood pressure.
 ```{r ideal_trestbps_prop, echo=FALSE}
 HeartData %>%
@@ -300,11 +350,11 @@ HeartData %>%
   theme(legend.position = "none")
 ```
 
-## Serum cholesterol  
+## Serum cholesterol {#chol}  
 Since there is too little information about what type of cholesterol level is given we assume total cholesterol. [Healthy cholesterol level](https://medlineplus.gov/cholesterollevelswhatyouneedtoknow.html) for adults is between 125mg/dL and 200mg/dL.
 
 Most patients serum cholesterol is higher than the healthy range:  
-```{r chol, echo=FALSE, message=FALSE}
+```{r chol_count, echo=FALSE, message=FALSE}
 HeartData %>%
   mutate(chol_rnd=round(chol, digits=-1)) %>%
   group_by(chol_rnd) %>%
@@ -318,7 +368,28 @@ HeartData %>%
   geom_vline(xintercept = 200)
 ```
 
-## Fasting blood sugar  
+This can also be seen in comparison between diseased and healthy patients. The median of cholesterol of both groups is higher than 200.
+```{r disease.chol.med, echo=TRUE}
+HD.chol.median.mean <- HeartData %>%
+  group_by(disease) %>%
+  summarize(me=mean(chol), med=median(chol))
+
+HD.chol <- HeartData %>%
+  group_by(disease) %>%
+  select(disease, chol)
+  
+  ggplot(data=HD.chol, aes(disease, chol, color=disease)) +
+  geom_jitter(width = 0.4, alpha = 0.3, size=4) +
+  stat_smooth(method="lm", formula=disease~1, se=FALSE) +
+  geom_hline(data=HD.chol.median.mean, aes(yintercept = med, color=disease)) +
+  geom_hline(yintercept=200, linetype = "dashed") +
+  xlab("Disease") +
+  ylab("Cholesterol") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none")
+```
+
+## Fasting blood sugar {#fbs}  
 Normal [blood sugar levels](https://www.diabetes.co.uk/diabetes_care/blood-sugar-level-ranges.html) of **non-diabetic** people are between **72mg/dL** and **99mg/dL** when fasting. Fasting blood sugar levels of **100mg/dL** up to **125mg/dL** are already described as **prediabetic**, while **fbs > 125mg/dL** are diagnosed as **diabetic**.  
 The study shows two possible outcomes of **fbs**: **<= 120mg/dL** and **>120mg/dL**.It must be considered, that people with a **fbs >120mg/dL** are at greater risk of developing heart disease or [cardiovascular disease](https://www.nhs.uk/conditions/cardiovascular-disease/), however the symptoms of the patient may be caused by diabetes and secondary diseases.  
 
@@ -343,7 +414,7 @@ There were 14.90% of patients with a critical value of fasting blood sugar level
 
 ^2^[Diabetes trends in the U.S.: 1990-1998](https://care.diabetesjournals.org/content/23/9/1278#:~:text=RESULTS%3A%20The%20prevalence%20of%20diabetes,levels%2C%20and%20nearly%20all%20states.)  
 
-## Resting electrocardiographic results  
+## Resting electrocardiographic results {#restecg}  
 As results of the [restecg](https://www.mayoclinic.org/tests-procedures/ekg/about/pac-20384983) there are three potential outcomes:  
 
 * **left ventricular hypertrophy:**  
@@ -363,7 +434,7 @@ HeartData %>%
   theme(axis.title = element_text())
 ```
 
-## THALACH  
+## THALACH {thalach}  
 THALACH is the **maximum heart rate** that has been achieved of each patient.  
 We observe a lower maximum heart rate for patients with disease than without disease:  
 ```{r disease_thalach, echo=FALSE, message=FALSE}
@@ -397,7 +468,7 @@ HeartData %>%
   ylab("thalach (mean)")
 ```
 
-## Exercise induced angina  
+## Exercise induced angina {#exang}  
 We can assume that angina indicates heart disease at exercise more often than without. We can tell by the fact that most patients with exercise induced angina had heart disease but only a minority of patients with heart disease had angina outside the exercises, most were asymptomatic^3^.
 ```{r exang_disease, echo=FALSE, message=FALSE}
 HeartData %>%
@@ -411,7 +482,7 @@ HeartData %>%
 
 ^3^3.3 chest pain type and disease
 
-## ST depression induced by exercise relative to rest  
+## ST depression induced by exercise relative to rest {#oldpeak}  
 We can say that a greater [ST depression](https://litfl.com/st-segment-ecg-library/) is a sign of an increased probability of heart disease. The following findings from the database show, that the ST depression increase at exercise for patients with heart disease is greather than for patients without heart disease:  
 ```{r disease_oldpeak, echo=FALSE, message=FALSE}
 HeartData %>%
@@ -431,7 +502,7 @@ HeartData %>%
 ```
 Mean and median show increased values of ST depression relation in people with heart disease than in people without heart disease.  
 
-## Slope of peak exercise ST segment  
+## Slope of peak exercise ST segment {#slope}  
 ```{r slope_disease, echo=FALSE, message=FALSE}
 HeartData %>%
   group_by(slope, disease) %>%
@@ -442,8 +513,9 @@ HeartData %>%
   xlab("slope of ST segment")
 ```
 
-## Major vessels colored by flourosopy  
+## Major vessels colored by flouroscopy {#ca}  
 
+[Flouroscopy](https://www.hopkinsmedicine.org/health/treatment-tests-and-therapies/fluoroscopy-procedure) is an imaging tool which is made for looking on several body systems. In this case the flouroscopy was used to observe the flow of blood through three major vessels in order to evaluate the presence of arterial blockages.
 ```{r ca_disease, echo=FALSE, message=FALSE}
 HeartData %>%
   filter(!is.na(ca)) %>%
@@ -455,8 +527,24 @@ HeartData %>%
     xlab("colored vessels")
 ```
 
-## Thalium Stress Test Result  
+The next plot shows that the more vessels are colored at flouroscopy the higher the proportion of patients with disease.
+```{r ca_disease_mean, echo=FALSE, message=FALSE}
+HeartData %>%
+  filter(!is.na(ca)) %>%
+  group_by(ca) %>%
+  summarize(ca_mean=mean(disease=="disease")) %>%
+  ggplot(aes(ca, ca_mean, fill=ca_mean)) +
+  geom_bar(stat="identity") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  xlab("colored vessels") +
+  ylab("proportion of disease") +
+  scale_fill_gradient(low="lightblue", high="red")
+```
 
+## Thalium Stress Test Result {#thal}  
+
+[Thalium Stress Test](https://www.healthline.com/health/thallium-stress-test) is a test used to measure how the bloodflow works while exercising or resting. The result was divided into normal result, fixed defect and reversible defect.
 ```{r thal_disease, echo=FALSE, message=FALSE}
 HeartData %>%
   filter(!is.na(thal)) %>%
@@ -468,6 +556,279 @@ HeartData %>%
     xlab("thalium stress test result")
 ```
 
+As we can see, the proportion of disease at normal thalium stress test results is near 20%. While for any type of defect it is higher than 60%.
+```{r thal_disease_mean, echo=FALSE, message=FALSE}
+HeartData %>%
+  filter(!is.na(thal)) %>%
+  group_by(thal) %>%
+  summarize(thal_mean=mean(disease=="disease")) %>%
+  ggplot(aes(thal, thal_mean, fill=thal_mean)) +
+  geom_bar(stat="identity") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  xlab("thalium stress test result") +
+  ylab("proportion of disease") +
+  scale_fill_gradient(low="lightblue", high="red")
+```
+
 # Methods  
-# Results
-# Conclusion
+## Training and testing set  
+
+In order to run different machine learning methods on the data we will first check the dataset on NA values.  
+```{r sumNA, echo=TRUE}
+sum(is.na(HeartData))
+compl <- as.vector(complete.cases(HeartData))
+HeartDataRM <- HeartData[compl, ]
+```
+
+To get reproducible results a seed has been set with as.integer(Sys.time()) using the last five characters.  
+```{r set.seed, echo=TRUE, warning=FALSE}
+set.seed(50866, sample.kind = "default")
+```
+
+The data will be partitioned into two sets of 70% of the data for training and 30% of the data for testing.  
+```{r dataPartition, echo=TRUE, warning=FALSE}
+test_index <- createDataPartition(y = HeartDataRM$disease,
+                                  times = 1,
+                                  p = 0.30,
+                                  list = FALSE)
+training <- HeartDataRM[-test_index,]
+testing <- HeartDataRM[test_index,]
+```
+
+Running functions of the caret package for the next model prediction attempts already brings cross validation as default but we will use repeated cross validation with 3 repeats.  
+```{r control.repeat, echo=TRUE, warning=FALSE}
+control.repeat <- trainControl(method = "repeatedcv", 
+                               number = 10,
+                               repeats = 3)
+```
+
+To run the k-nearest neighbors algorithm, the categorical data of the training and testing data will be encoded by using dummy variables. We will set this data to binary variables and get a data frames of 29 columns each. This data will be used for the kNN-Algorithm exclusively.
+```{r onehot.encoding}
+#one hot encoding (Training data)
+Training.dummy <- dummyVars(" ~.", data=training)
+training.onehot <- data.frame(predict(Training.dummy, newdata = training))
+training.onehot$disease.disease <- as.factor(training.onehot$disease.disease)
+training.onehot$disease.no.disease <- as.factor(training.onehot$disease.no.disease)
+training.onehot$disease.no.disease <- NULL
+#one hot encoding (Testing data)
+Testing.dummy <- dummyVars(" ~.", data=testing)
+testing.onehot <- data.frame(predict(Testing.dummy, newdata = testing))
+testing.onehot$disease.disease <- as.factor(testing.onehot$disease.disease)
+testing.onehot$disease.no.disease <- as.factor(testing.onehot$disease.no.disease)
+testing.onehot$disease.no.disease <- NULL
+```
+
+## Decision Tree  
+The first modeling approach was a decision tree. These are pretty suitable for the purpose of identifying if several indicators show diseases or not.  
+We have used the train function from the caret package and set the rpart method. TuneLength is set to 10, which means that the function uses ten different hyperparameters and chooses the best fitting for the training data. The hyperparameter of rpart is the **complexity parameter**.  
+```{r Train.dec.tree, echo=TRUE}
+Train.dec.tree <- train(disease ~ ., data=training,
+        method="rpart",
+        trControl=control.repeat,
+        tuneLength=10
+)
+```
+
+* 82.90% of patients would have been diagnosed correctly to have heart disease (sensitivity)
+* 77.10% of patients would have been diagnosed correctly to have no heart disease (specificity)
+* The overall accuracy of the decision tree is 79.80%.
+
+```{r Model.dec.tree, echo=TRUE}
+Model.dec.tree <- predict(Train.dec.tree, testing, type="raw")
+confusionMatrix(Model.dec.tree, testing$disease)$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Res.dec.tree <- confusionMatrix(Model.dec.tree, testing$disease)$overall[["Accuracy"]]
+Res.dec.tree %>%
+  knitr::kable(col.names = c("Accuracy")) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+The classification tree shows that the data was first split at the result of [thal](#thal). Furthermore split at [oldpeak](#oldpeak), [chol](#chol), [exang](#exang), [thalach](#thalach) and [ca](#ca).
+
+* 30% of all patients were predicted to have an abnormal thal and an oldpeak of $\geq$ 0.7
+    + 87% of these patients were predicted to have heart disease 
+* 9% of patients were predicted to have an abnormal thal, an oldpeak of $\geq$ 0.7 and chol $\geq$ 228
+    + 67% of these patients were predicted to have heart disease 
+* 5% of all patients were predicted to have a normal thal, exang and thalach < 140
+    + 77% of these patients were predicted to have no heart disease 
+* 32% of the patients were predicted to have a normal thal, exercise induced angina, ca $\not=$ 1 and have oldpeak $\geq$ 1.7
+    + 94% of these patients were predicted to have no heart disease 
+
+```{r plot_Train.dec.tree, echo=TRUE}
+fancyRpartPlot(Train.dec.tree$finalModel, sub="")
+```
+
+*Split of categorical data is between 1 (true) and 0 (false). e.g. thalnormal < 0.5 means all abnormal thal results.  
+
+## Random forest  
+
+```{r Train.random.forest, echo=TRUE}
+Train.random.forest <- train(disease ~ ., data=training,
+                             method="rf",
+                             metric="Accuracy",
+                             preProcess=c("center","scale"),
+                             tuneLength=10,
+                             trControl=control.repeat
+                             )
+```
+
+```{r Model.random.forest, echo=TRUE}
+Model.random.forest <- predict(Train.random.forest, testing, type="raw")
+confusionMatrix(Model.random.forest, testing$disease)$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Res.random.forest <- confusionMatrix(Model.dec.tree, testing$disease)$overall[["Accuracy"]]
+Res.random.forest %>%
+  knitr::kable(col.names = c("Accuracy")) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+Best ntree:  
+```{r best_ntree, results="hide"}
+modellist <- list()
+for (ntree in c(500, 1000, 1500, 2000, 2500)) {
+  fit <- train(disease~., data=training, 
+               method="rf", 
+               metric="Accuracy",
+               preProcess=c("center","scale"),
+               tuneGrid=expand.grid(.mtry=c(sqrt(ncol(training)))),
+               trControl=control.repeat,
+               ntree=ntree)
+  key <- toString(ntree)
+  modellist[[key]] <- fit
+}
+results <- resamples(modellist)
+summary(results)
+```
+
+```{r dec.tree.accuracy_dotplot}
+dotplot(results, ylab="nTree")
+```
+
+```{r varImp_Train.random.forest, echo=FALSE}
+varImp(Train.random.forest)
+```
+
+```{r plot_Train.random.forest}
+plot(Train.random.forest$finalModel, main="train random forest")
+```
+
+## Support vector machines  
+```{r train.svmLinear}
+#train svmLinear (cv)
+train.svmLinear <- train(disease ~ ., data=training,
+                         method = "svmLinear",
+                         trControl= control.repeat,
+                         preProcess=c("center",
+                                      "scale"),
+                         # tuneGrid=expand.grid(C=1)
+                         tuneLength=5)
+#apply model on testing
+Model.svmLinear <- predict(train.svmLinear, testing)
+confusionMatrix(Model.svmLinear, testing$disease)$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Res.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$overall["Accuracy"]
+Res.svmLinear %>%
+  knitr::kable(col.names = c("Accuracy")) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+```{r train.svmPoly}
+#train svmPoly (cv)
+train.svmPoly <- train(disease ~ ., data = training,
+                       method = "svmPoly",
+                       preProcess=c("scale",
+                                    "center"),
+                       trControl=control.repeat,
+                       # tuneGrid=expand.grid(degree=1,
+                       #                      scale=1,
+                       #                      C=0.25)
+                       tuneLength=5
+                       )
+#apply model on testing
+Model.svmPoly <- predict(train.svmPoly, testing)
+confusionMatrix(Model.svmPoly, testing$disease)$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Res.svmPoly <- confusionMatrix(Model.svmPoly, testing$disease)$overall["Accuracy"]
+Res.svmPoly %>%
+  knitr::kable(col.names = c("Accuracy")) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+```{r train.svmRadial}
+#train svmRadial (cv)
+train.svmRadial <- train(disease ~ ., data = training,
+                         method = "svmRadial",
+                         preProcess=c("scale",
+                                      "center"),
+                         trControl=control.repeat,
+                         # tuneGrid=expand.grid(C=0.25,
+                         #                      sigma=0.031)
+                         tuneLength=5
+                         )
+#apply model on testing
+Model.svmRadial <- predict(train.svmRadial, testing)
+confusionMatrix(Model.svmRadial, testing$disease)$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Res.svmRadial <- confusionMatrix(Model.svmRadial, testing$disease)$overall["Accuracy"]
+Res.svmRadial %>%
+  knitr::kable(col.names = c("Accuracy")) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+## K-nearest neighbors
+```{r Train.knn}
+Train.knn <- train(disease.disease~., data=training.onehot,
+               method="knn",
+               trControl=control.repeat,
+               # tuneGrid=expand.grid(k=5)
+               tuneLength=3
+  )
+```
+
+```{r Model.knn}
+Model.knn <- predict(Train.knn, testing.onehot, type = "raw")
+confusionMatrix(Model.knn, testing.onehot$disease.disease)$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Res.knn <- confusionMatrix(Model.knn, testing.onehot$disease.disease)$overall["Accuracy"]
+Res.knn %>%
+  knitr::kable(col.names = c("Accuracy")) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+```{r bestk}
+ksize <- seq(5, 9, 1)
+k_maxacc <- sapply(ksize, function(ks) {
+  train(disease.disease~., data=training.onehot,
+        method="knn",
+        trControl=control.repeat,
+        tuneGrid=expand.grid(k=ks)
+  )$results$Accuracy
+})
+qplot(ksize, k_maxacc)
+```
+
+# Results  
+```{r results.tibble}
+tibble(Method=c("Decision tree", 
+                "Random forest", 
+                "Support vector machine (linear)", 
+                "Support vector machine (polynomial)",
+                "Support vector machine (radial basis function)",
+                "k-nearest neighbors"), 
+Accuracy=c(Res.dec.tree, 
+           Res.random.forest, 
+           Res.svmLinear, 
+           Res.svmPoly,
+           Res.svmRadial,
+           Res.knn)) %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+# Conclusion  

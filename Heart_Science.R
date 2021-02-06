@@ -3,6 +3,8 @@ library(plyr)
 library(tidyverse)
 library(ggthemes)
 library(kableExtra)
+library(rafalib)
+library(kernlab)
 library(caret)
 library(rpart)
 library(rpart.plot)
@@ -10,7 +12,6 @@ library(naivebayes)
 library(skimr)
 library(rattle)
 library(randomForest)
-library(rafalib)
 #library(wesanderson)
 #library(magrittr)
 
@@ -32,45 +33,70 @@ pairs.panels(HeartData[])
 
 #factorize attributes
 #age: age in years
+#sex: (0 = female; 1 = male)
 HeartData <- HeartData %>%
   mutate(sex=ifelse(sex==0, 'female', 'male'))
-HeartData$sex <- as.factor(HeartData$sex) #sex: (0 = female; 1 = male)
+HeartData$sex <- as.factor(HeartData$sex)
 #HeartData$sex %<>% factor
 
-HeartData$cp <- as.factor(HeartData$cp) #cp: chest pain type (0: asymptomatic, 1: atypical angina, 2: non-anginal pain, 3: typical angina)
-HeartData$cp <- revalue(HeartData$cp, c('0'='asymptomatic', '1'='atypical angina', '2'='non anginal pain', '3'='typical angina'))
+#cp: chest pain type (0: asymptomatic, 1: atypical angina, 2: non-anginal pain, 3: typical angina)
+HeartData$cp <- as.factor(HeartData$cp)
+HeartData$cp <- revalue(HeartData$cp, c('0'='asymptomatic', 
+                                        '1'='atypical angina', 
+                                        '2'='non anginal pain', 
+                                        '3'='typical angina'))
 
 #trestbps: resting blood pressure (in mm/Hg on admission to the hospital)
 
 #chol: serum cholesterol in mg/dl
 
+#fbs: fasting blood sugar > 120 mg/dl (1=yes, 0=no)
 HeartData <- HeartData %>%
-  mutate(fbs=ifelse(fbs==1, '>120', '<=120'))
-HeartData$fbs <- as.factor(HeartData$fbs) #fbs: fasting blood sugar > 120 mg/dl (1=yes, 0=no)
+  mutate(fbs=ifelse(fbs==1, 
+                    '>120', 
+                    '<=120'))
+HeartData$fbs <- as.factor(HeartData$fbs)
 
-HeartData$restecg <- as.factor(HeartData$restecg) #restecg: resting electrocardiographic results (0: showing probable or definite left ventricular hypertrophy (by Estes' criteria), 1: normal, 2: having ST-T wave abnormality (T wave inversions and/or ST elevation or depression of > 0.05 mV))
-HeartData$restecg <- revalue(HeartData$restecg, c('0'='left vetricular hypertrophy', '1'='normal', '2'='st-t abnormality'))
+#restecg: resting electrocardiographic results (0: showing probable or definite left ventricular hypertrophy (by Estes' criteria), 1: normal, 2: having ST-T wave abnormality (T wave inversions and/or ST elevation or depression of > 0.05 mV))
+HeartData$restecg <- as.factor(HeartData$restecg)
+HeartData$restecg <- revalue(HeartData$restecg, c('0'='left vetricular hypertrophy', 
+                                                  '1'='normal', 
+                                                  '2'='st-t abnormality'))
 
 #thalach: maximum heart rate achieved
 
+#exang: exercise induced angina (1 = yes; 0 = no)
 HeartData <- HeartData %>%
-  mutate(exang=ifelse(exang==0, 'no', 'yes'))
-HeartData$exang <- as.factor(HeartData$exang) #exang: exercise induced angina (1 = yes; 0 = no)
+  mutate(exang=ifelse(exang==0, 
+                      'no', 
+                      'yes'))
+HeartData$exang <- as.factor(HeartData$exang)
 
 #oldpeak: ST depression induced by exercise relative to rest
 
-HeartData$slope <- as.factor(HeartData$slope) #slope: the slope of the peak exercise ST segment (0: downsloping; 1: flat; 2: upsloping)
-HeartData$slope <- revalue(HeartData$slope, c('0'='downsloping', '1'='flat', '2'='upsloping'))
+#slope: the slope of the peak exercise ST segment (0: downsloping; 1: flat; 2: upsloping)
+HeartData$slope <- as.factor(HeartData$slope)
+HeartData$slope <- revalue(HeartData$slope, c('0'='downsloping',
+                                              '1'='flat',
+                                              '2'='upsloping'))
 
-HeartData$ca <- as.factor(HeartData$ca)#ca: number of major vessels (0-3) colored by flourosopy
+#ca: number of major vessels (0-3) colored by flourosopy
+HeartData$ca <- as.factor(HeartData$ca)
 HeartData$ca <- revalue(HeartData$ca, c('4'=NA))
 
-HeartData$thal <- as.factor(HeartData$thal) #thal: Thalium Stress Test Result (0: null, 1:fixed defect, 2= normal, 3=reversible defect), original: (3 = normal; 6 = fixed defect; 7 = reversable defect)
-HeartData$thal <- revalue(HeartData$thal, c('0'=NA, '1'='fixed defect', '2'='normal', '3'='reversible defect'))
+#thal: Thalium Stress Test Result (0: null, 1:fixed defect, 2= normal, 3=reversible defect), original: (3 = normal; 6 = fixed defect; 7 = reversable defect)
+HeartData$thal <- as.factor(HeartData$thal)
+HeartData$thal <- revalue(HeartData$thal, c('0'=NA, 
+                                            '1'='fixed defect', 
+                                            '2'='normal', 
+                                            '3'='reversible defect'))
 
+#target diagnosis of heart disease (angiographic disease status): 0 = disease (> 50% diameter narrowing), 1 = no disease (< 50% diameter narrowing)
 HeartData <- HeartData %>%
-  mutate(target=ifelse(target==0, "disease", "no disease"))
-HeartData$target <- as.factor(HeartData$target) #target diagnosis of heart disease (angiographic disease status): 0 = disease (> 50% diameter narrowing), 1 = no disease (< 50% diameter narrowing)
+  mutate(target=ifelse(target==0, 
+                       "disease", 
+                       "no disease"))
+HeartData$target <- as.factor(HeartData$target)
 HeartData$disease <- HeartData$target
 HeartData$target <- NULL
 attr(HeartData, 'spec') <- NULL
@@ -139,11 +165,13 @@ HeartData %>%
 HeartData %>%
   group_by(cp) %>%
   summarize(count=n()) %>%
-  ggplot(aes(cp, count, fill=cp)) +
+  ggplot(aes(cp, count, fill=count)) +
   geom_bar(stat="identity") +
   theme_fivethirtyeight() +
   theme(axis.title = element_text(), legend.position = "none") +
-  xlab("chest pain type")
+  xlab("chest pain type") +
+  ylab("count") +
+  scale_fill_gradient(low="purple", high="red")
 
 #chest pain no/disease (barplot) (cp_disease_dist)
 HeartData %>%
@@ -204,7 +232,7 @@ HeartData %>%
   ylab("proportion disease")
 
 #chol - Serum cholesterol
-#chol
+#chol count (chol_count)
 HeartData %>%
   mutate(chol_rnd=round(chol, digits=-1)) %>%
   group_by(chol_rnd) %>%
@@ -243,6 +271,28 @@ HeartData %>%
 HeartData %>%
   ggplot(aes(age, chol, color=disease)) +
   geom_point()
+
+# (disease.chol.med)
+HD.chol.median.mean <- HeartData %>%
+  group_by(disease) %>%
+  summarize(me=mean(chol), med=median(chol))
+
+HD.chol <- HeartData %>%
+  group_by(disease) %>%
+  select(disease, chol)
+  
+  ggplot(data=HD.chol, aes(disease, chol, color=disease)) +
+  geom_jitter(width = 0.4, alpha = 0.3, size=4) +
+  stat_smooth(method="lm", formula=disease~1, se=FALSE) +
+  geom_hline(data=HD.chol.median.mean, aes(yintercept = med, color=disease)) +
+  xlab("Disease") +
+  ylab("Cholesterol") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none")
+  
+HeartData %>%
+  group_by(disease) %>%
+  summarize(mean(chol))
 
 #fbs - Fasting blood sugar
 HeartData %>%
@@ -357,22 +407,28 @@ HeartData %>%
   ylab("disease (proportion)")
 
 #ca - Major vessels colored by flourosopy
-# HeartData %>%
-#   filter(!is.na(ca)) %>%
-#   group_by(ca) %>%
-#   ggplot(aes(ca, ..prop.., group=1, fill=disease)) +
-#   geom_bar(stat="count") +
-#   scale_y_continuous(labels = scales::percent_format())
-
 #ca disease (ca_disease)
 HeartData %>%
-  filter(!is.na(ca)) %>%
+    filter(!is.na(ca)) %>%
     group_by(ca) %>%
     ggplot(aes(ca, ..count.., fill=disease)) +
     geom_bar(position="dodge") +
     theme_fivethirtyeight() +
     theme(axis.title = element_text()) +
     xlab("vessels colored")
+
+# (ca_disease_mean)
+HeartData %>%
+  filter(!is.na(ca)) %>%
+  group_by(ca) %>%
+  summarize(ca_mean=mean(disease=="disease")) %>%
+  ggplot(aes(ca, ca_mean, fill=ca_mean)) +
+  geom_bar(stat="identity") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  xlab("vessels colored") +
+  ylab("proportion of disease") +
+  scale_fill_gradient(low="purple", high="red")
 
 #thal - Thalium Stress Test Result
 
@@ -381,19 +437,23 @@ HeartData %>%
 HeartData %>%
   group_by(disease, age) %>%
   ggplot(aes(disease, age, col=disease)) +
-  geom_violin(alpha=0.7) +
+  geom_violin(alpha=0.3) +
   theme_fivethirtyeight() +
   theme(axis.title = element_text())
 
 #find and remove NA values
 sum(is.na(HeartData))
-HeartDataRM <-HeartData[complete.cases(HeartData), ]
+compl <- as.vector(complete.cases(HeartData))
+HeartDataRM <- HeartData[compl, ]
 
 #Modeling
 #setting seed
-set.seed(2)
+set.seed(50866, sample.kind = "Rounding")
 
-test_index <- createDataPartition(y = HeartDataRM$disease, times = 1, p = 0.2, list = FALSE)
+test_index <- createDataPartition(y = HeartDataRM$disease,
+                                  times = 1,
+                                  p = 0.3,
+                                  list = FALSE)
 training <- HeartDataRM[-test_index,]
 testing <- HeartDataRM[test_index,]
 
@@ -402,136 +462,205 @@ control <- trainControl(method = "cv",
                         number = 10, 
                         p = .9)
 control.repeat <- trainControl(method = "repeatedcv", 
-                               number = 10, 
-                               repeats = 3, 
-                               seed = 2)
+                               number = 10,
+                               repeats = 3,
+                               )
 
-# #naive bayes
-# heartdata_naive_bayes <- naive_bayes(disease ~., data=training)
-# plot(heartdata_naive_bayes)
-# predict_heartdata_naive_bayes <- predict(heartdata_naive_bayes, testing)
+#one hot encoding (Training data)
+Training.dummy <- dummyVars(" ~.", data=training)
+training.onehot <- data.frame(predict(Training.dummy, newdata = training))
+training.onehot$disease.disease <- as.factor(training.onehot$disease.disease)
+training.onehot$disease.no.disease <- as.factor(training.onehot$disease.no.disease)
+training.onehot$disease.no.disease <- NULL
+#one hot encoding (Testing data)
+Testing.dummy <- dummyVars(" ~.", data=testing)
+testing.onehot <- data.frame(predict(Testing.dummy, newdata = testing))
+testing.onehot$disease.disease <- as.factor(testing.onehot$disease.disease)
+testing.onehot$disease.no.disease <- as.factor(testing.onehot$disease.no.disease)
+testing.onehot$disease.no.disease <- NULL
 
-#decision tree
-Train.dec.tree <- training %>%
-  rpart(disease ~ ., data=.,
-        model=TRUE)
-Model.dec.tree <- predict(Train.dec.tree, testing, type="class")
+#DECISION TREE
+#decision tree train (Train.dec.tree)
+Train.dec.tree <- train(disease ~ ., data=training,
+                        method="rpart",
+                        trControl=control.repeat,
+                        tuneLength=5
+)
+#decision tree train (2) (-)
+Train.dec.tree.2 <- train(disease ~ ., data=training,
+        method="rpart",
+        trControl=control.repeat,
+        tuneLength=10,
+        control=rpart.control(minsplit = 15,
+                              cp = 0.01)
+        )
+#atleast minsplit observations in each node in order for a split to be attempted (because minsplit is set, minbucket is automatically: minsplit/3)
+Model.dec.tree <- predict(Train.dec.tree, testing, type="raw")
 confusionMatrix(table(Model.dec.tree, testing$disease))
-#rpart.plot(Train.dec.tree)
-fancyRpartPlot(Train.dec.tree, sub="") #example: 90% have disease at thal=(fixed defect, reversible defect) and cp=asymptomatic); 30% of all patients have thal=(fixed defect, reversible defect), cp=asymptomatic)
 
-# #decision tree with train function (wont work with rpart.plot)
-# Train.dec.tree <- train(disease ~ ., data=training,
-#                         method="rpart",
-#                         model=TRUE,
-#                         tuneLength = 10,
-#                         parms=list(split='information'))
-# Model.dec.tree <- predict(Train.dec.tree, testing, type="raw")
-# confusionMatrix(table(Model.dec.tree, testing$disease))
-# plot(Train.dec.tree$finalModel, uniform=TRUE)
-# text(Train.dec.tree$finalModel, use.n = TRUE, all=TRUE, cex=.8)
+#example: 90% have disease at thal=(fixed defect, reversible defect) and cp=asymptomatic); 30% of all patients have thal=(fixed defect, reversible defect), cp=asymptomatic)
+fancyRpartPlot(Train.dec.tree$finalModel, sub="")
 
-#random forest
-Train.random.forest <- randomForest(disease ~ ., data=training,
-                                    ntree=1000, 
-                                    importance=TRUE,
-                                    trControl=control,
-                                    tuneGrid = data.frame(mtry = sqrt(ncol(training))))
-tTrain.random.forest <- train(disease ~ ., data=training, 
+#RANDOM FOREST
+#mtry: number of predictor variables per tree
+#TRAIN function
+#train rf (Train.random.forest)
+Train.random.forest <- train(disease ~ ., data=training,
+                             method="rf",
+                             metric="Accuracy",
+                             preProcess=c("center","scale"),
+                             tuneGrid=expand.grid(.mtry=c(sqrt(ncol(training)))),
+                             trControl=control.repeat,
+                             ntree=2500
+)
+Model.random.forest <- predict(Train.random.forest, testing, type="raw")
+
+#train rf (2) (Train.random.forest)
+Train.random.forest2 <- train(disease ~ ., data=training,
                              method="rf", 
-                             metric="Accuracy", 
-                             ntree=1000,
-                             importance=TRUE,
-                             trControl=control,
-                             tuneGrid = data.frame(mtry = sqrt(ncol(training))))
-importance(Train.random.forest)
-Model.random.forest <- predict(Train.random.forest, testing, type="response")
-Model.random.forest <- predict(tTrain.random.forest, testing, type="raw")
-confusionMatrix(Model.random.forest, testing$disease)#$overall["Accuracy"]
+                             trControl=control.repeat,
+                             tuneLength=10
+                             #tuneGrid = data.frame(mtry = sqrt(ncol(training)))
+                             ) #default mtry for categorical response
 
+
+# #result of random forest
+# Result.random.forest <- data.frame(Model.random.forest, testing$disease)
+# plot(Result.random.forest)
+
+#optimize n:
+# (best_ntree)
+modellist <- list()
+for (ntree in c(500, 1000, 1500, 2000, 2500)) {
+  fit <- train(disease~., data=training, 
+               method="rf", 
+               metric="Accuracy",
+               preProcess=c("center","scale"),
+               tuneGrid=expand.grid(.mtry=c(sqrt(ncol(training)))),
+               trControl=control.repeat,
+               ntree=ntree)
+  key <- toString(ntree)
+  modellist[[key]] <- fit
+}
+results <- resamples(modellist)
+summary(results)
+
+# (dec.tree.accuracy_dotplot)
+dotplot(results, ylab="nTree")
+
+# (varImp_Train.random.forest)
+varImp(Train.random.forest)
+
+# (plot_Train.random.forest)
+plot(Train.random.forest$finalModel, main="train random forest")
+
+#RANDOMFOREST function
+Train.RF.random.forest <- randomForest(disease ~ ., data=training,
+                                    trControl=control.repeat,
+                                    ntree=2000,
+                                    tuneLength=10,
+                                    tuneGrid = data.frame(mtry = sqrt(ncol(training)))
+                                    #default mtry for categorical response
+)
+Model.RF.random.forest <- predict(Train.RF.random.forest, testing, type="response") #type=class?
+confusionMatrix(Model.RF.random.forest, testing$disease)#$overall["Accuracy"]
+importance(Train.RF.random.forest) #importance/gini index of variables
 #plot trees vs errors
 rafalib::mypar()
-plot(Train.random.forest)
+plot(Train.RF.random.forest)
 
-#result of random forest
-Result.random.forest <- data.frame(testing$disease, Model.random.forest)
-plot(Result.random.forest)
+#SUPPORT VECTOR MACHINES
+# Linear Kernel (svmLinear): C (Cost)
+# Polynomial Kernel (svmPoly): degree (Polynomial Degree), scale (Scale), C (Cost)
+# Radial Basis Function Kernel (svmRadial): C (cost), sigma (Sigma)
+# -
+# C (cost): Misclassification parameter (high C: smaller-margin hyperplane/higher cost of misclassification; low C: larger-margin separating hyperplane/low cost of misclassification)
+# degree (Polynomial Degree): Dimension of the model; 3 is default
+# scale (Scale):
+# sigma (Sigma): 
 
-# #optimize node size:
-# nodesize <- seq(0, 50, 2)
-# node_maxsize <- sapply(nodesize, function(ns){
-#   train(disease ~ ., data=training, 
-#         method="rf", 
-#         metric="Accuracy", 
-#         tuneGrid = data.frame(mtry = sqrt(ncol(training))),
-#         ntree=500)$overall$accuracy
-#   })
-# qplot(nodesize, node_maxsize)
-#optimize n:
-nsize <- seq(500, 1500, 100)
-n_maxacc <- sapply(nsize, function(nz) {
-  train(disease ~ ., data=training, 
-        method="rf", 
-        metric="Accuracy", 
-        tuneGrid = data.frame(mtry = sqrt(ncol(training))),
-        ntree=nz)$results$Accuracy
-})
-qplot(nsize, n_maxacc) #opt acc at n=1200
-#optimize mtry:
-Train.mtry <- train(disease ~ ., data=training, 
-        method="rf", 
-        metric="Accuracy", 
-        tuneGrid = expand.grid(.mtry=c(1:13),.ntree=c(500,1000,1500)))$results$Accuracy
-plot(Train.mtry)
-
-# #KNN train just for investigation purposes (needs long time)
-# m_knn <- train_set %>%
-#   train(manhattan~longitude+latitude,
-#         method="knn",
-#         data=.,
-#         tuneGrid = data.frame(k = seq(5))
-#         #trControl=control
-#   )
-# m_p_hat_knn <- predict(m_knn, test_set, type = "raw")
-# confusionMatrix(m_p_hat_knn, test_set$manhattan)#$overall["Accuracy"]
-
-#svm (polynomial kernel)
-#! svmLinear: C (cost) needed
-#  svmRadial: C (cost), sigma needed
-#  svmPoly:   C (cost), sigma, 
-# Build Training model
-#train svmLinear
-train.svmLinear <- train(disease ~ ., data=training,
-                          method = "svmLinear",
-                          trControl= trainControl(method="none"),
-                          preProcess=c("center", "scale"),
-                          tuneLength = 10)
-Model.svmLinear <- predict(train.svmLinear, testing)
-confusionMatrix(Model.svmLinear, testing$disease)
 #train svmLinear (cv)
-train.svmLinear.cv <- train(disease ~ ., data=training,
-                               method = "svmLinear",
-                               trControl= control,
-                               preProcess=c("center", "scale"),
-                               tuneLength = 10)
+train.svmLinear <- train(disease ~ ., data=training,
+                         method = "svmLinear",
+                         trControl= control.repeat,
+                         preProcess=c("center",
+                                      "scale"),
+                         # tuneGrid=expand.grid(C=1)
+                         tuneLength=5)
 #apply model on testing
-Model.svmLinear.cv <- predict(train.svmLinear.cv, testing)
-confusionMatrix(Model.svmLinear.cv, testing$disease)
-#train svmPoly
-train.svmPoly <- train(disease ~ ., data = training,
-               method = "svmPoly",
-               preProcess=c("scale","center"),
-               trControl= trainControl(method="none"),
-               tuneGrid = data.frame(degree=1,scale=1,C=1))
-#apply model on testing
-Model.svmPoly <- predict(train.svmPoly, testing) 
-confusionMatrix(Model.svmPoly, testing$disease)
+Model.svmLinear <- predict(train.svmLinear, testing)
+confusionMatrix(Model.svmLinear, testing$disease)$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Res.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$overall["Accuracy"]
+Res.svmLinear %>%
+  knitr::kable(col.names = c("Accuracy")) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
 #train svmPoly (cv)
-train.svmPoly.cv <- train(disease ~ ., data = training,
-                  method = "svmPoly",
-                  preProcess=c("center", "scale"),
-                  trControl= control,
-                  tuneLength = 10)
+train.svmPoly <- train(disease ~ ., data = training,
+                       method = "svmPoly",
+                       preProcess=c("scale",
+                                    "center"),
+                       trControl=control.repeat,
+                       # tuneGrid=expand.grid(degree=1,
+                       #                      scale=1,
+                       #                      C=0.25)
+                       tuneLength=5
+)
 #apply model on testing
-Model.svmPoly.cv <- predict(train.svmPoly.cv, testing) 
-confusionMatrix(Model.svmPoly.cv, testing$disease)
+Model.svmPoly <- predict(train.svmPoly, testing)
+confusionMatrix(Model.svmPoly, testing$disease)$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Res.svmPoly <- confusionMatrix(Model.svmPoly, testing$disease)$overall["Accuracy"]
+Res.svmPoly %>%
+  knitr::kable(col.names = c("Accuracy")) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+#train svmRadial (cv)
+train.svmRadial <- train(disease ~ ., data = training,
+                         method = "svmRadial",
+                         preProcess=c("scale",
+                                      "center"),
+                         trControl=control.repeat,
+                         # tuneGrid=expand.grid(C=0.25,
+                         #                      sigma=0.031)
+                         tuneLength=5
+)
+#apply model on testing
+Model.svmRadial <- predict(train.svmRadial, testing)
+confusionMatrix(Model.svmRadial, testing$disease)$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Res.svmRadial <- confusionMatrix(Model.svmRadial, testing$disease)$overall["Accuracy"]
+Res.svmRadial %>%
+  knitr::kable(col.names = c("Accuracy")) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+
+# K-NEAREST NEIGHBOURS
+Train.knn <- train(disease.disease~., data=training.onehot,
+                   method="knn",
+                   trControl=control.repeat,
+                   # tuneGrid=expand.grid(k=5)
+                   tuneLength=3
+)
+Model.knn <- predict(Train.knn, testing.onehot, type = "raw")
+confusionMatrix(Model.knn, testing.onehot$disease.disease)$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Res.knn <- confusionMatrix(Model.knn, testing.onehot$disease.disease)$overall["Accuracy"]
+Res.knn %>%
+  knitr::kable(col.names = c("Accuracy")) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+
+ksize <- seq(5, 9, 1)
+k_maxacc <- sapply(ksize, function(ks) {
+  train(disease.disease~., data=training.onehot,
+        method="knn",
+        trControl=control.repeat,
+        tuneGrid=expand.grid(k=ks)
+  )$results$Accuracy
+})
+qplot(ksize, k_maxacc)
+
+#Safe to csv for tableau analysis
+write.csv(HeartDataRM, "data/heartdata_processed.csv")
