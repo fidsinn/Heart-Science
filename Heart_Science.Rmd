@@ -544,7 +544,7 @@ HeartData %>%
 
 ## Thalium Stress Test Result {#thal}  
 
-[Thalium Stress Test](https://www.healthline.com/health/thallium-stress-test) is a test used to measure how the bloodflow works while exercising or resting. The result was divided into normal result, fixed defect and reversible defect.
+[Thalium Stress Test](https://www.healthline.com/health/thallium-stress-test) is a test used to measure how the bloodflow works while exercising or resting. The result was divided into normal result, fixed defect and reversible defect.  
 ```{r thal_disease, echo=FALSE, message=FALSE}
 HeartData %>%
   filter(!is.na(thal)) %>%
@@ -556,7 +556,7 @@ HeartData %>%
     xlab("thalium stress test result")
 ```
 
-As we can see, the proportion of disease at normal thalium stress test results is near 20%. While for any type of defect it is higher than 60%.
+As we can see, the proportion of disease at normal thalium stress test results is near 20%. While for any type of defect it is higher than 60%.  
 ```{r thal_disease_mean, echo=FALSE, message=FALSE}
 HeartData %>%
   filter(!is.na(thal)) %>%
