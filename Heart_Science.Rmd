@@ -1,7 +1,7 @@
 ---
 title: "Heart Disease Science"
 author: "Finn B"
-date: "1/17/2021"
+date: "2/9/2021"
 output:
   pdf_document: default
   prettydoc::html_pretty:
@@ -21,7 +21,20 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r libraries, include=FALSE}
+if(!require(psych)) install.packages("psych", repos = "http://cran.us.r-project.org")
 if(!require(plyr)) install.packages("plyr", repos = "http://cran.us.r-project.org")
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(ggthemes)) install.packages("ggthemes", repos = "http://cran.us.r-project.org")
+if(!require(kableExtra)) install.packages("kableExtra", repos = "http://cran.us.r-project.org")
+if(!require(rafalib)) install.packages("rafalib", repos = "http://cran.us.r-project.org")
+if(!require(kernlab)) install.packages("kernlab", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
+if(!require(rpart.plot)) install.packages("rpart.plot", repos = "http://cran.us.r-project.org")
+if(!require(naivebayes)) install.packages("naivebayes", repos = "http://cran.us.r-project.org")
+if(!require(skimr)) install.packages("skimr", repos = "http://cran.us.r-project.org")
+if(!require(rattle)) install.packages("rattle", repos = "http://cran.us.r-project.org")
+if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
 
 library(psych)
 library(plyr)
@@ -178,7 +191,7 @@ HeartData %>%
   kable_styling(full_width = FALSE)
 ```
 
-As we can see the proportion of patients with disease was at 45.50% in the database.
+As we can see the proportion of patients with disease was at 45.5% in the database.  
 
 ## Age  
 
@@ -515,7 +528,7 @@ HeartData %>%
 
 ## Major vessels colored by flouroscopy {#ca}  
 
-[Flouroscopy](https://www.hopkinsmedicine.org/health/treatment-tests-and-therapies/fluoroscopy-procedure) is an imaging tool which is made for looking on several body systems. In this case the flouroscopy was used to observe the flow of blood through three major vessels in order to evaluate the presence of arterial blockages.
+[Flouroscopy](https://www.hopkinsmedicine.org/health/treatment-tests-and-therapies/fluoroscopy-procedure) is an imaging tool which is made for looking on several body systems. In this case the flouroscopy was used to observe the flow of blood through three major vessels in order to evaluate the presence of arterial blockages.  
 ```{r ca_disease, echo=FALSE, message=FALSE}
 HeartData %>%
   filter(!is.na(ca)) %>%
@@ -527,7 +540,7 @@ HeartData %>%
     xlab("colored vessels")
 ```
 
-The next plot shows that the more vessels are colored at flouroscopy the higher the proportion of patients with disease.
+The next plot shows that the more vessels are colored at flouroscopy the higher the proportion of patients with disease.  
 ```{r ca_disease_mean, echo=FALSE, message=FALSE}
 HeartData %>%
   filter(!is.na(ca)) %>%
@@ -544,7 +557,8 @@ HeartData %>%
 
 ## Thalium Stress Test Result {#thal}  
 
-[Thalium Stress Test](https://www.healthline.com/health/thallium-stress-test) is a test used to measure how the bloodflow works while exercising or resting. The result was divided into normal result, fixed defect and reversible defect.  
+[Thalium Stress Test](https://www.healthline.com/health/thallium-stress-test) is a test used to measure how the bloodflow works while exercising or resting.  
+The result was divided into normal result, fixed defect and reversible defect.  
 ```{r thal_disease, echo=FALSE, message=FALSE}
 HeartData %>%
   filter(!is.na(thal)) %>%
@@ -573,7 +587,6 @@ HeartData %>%
 
 # Methods  
 ## Training and testing set  
-
 In order to run different machine learning methods on the data we will first check the dataset on NA values.  
 ```{r sumNA, echo=TRUE}
 sum(is.na(HeartData))
@@ -603,24 +616,44 @@ control.repeat <- trainControl(method = "repeatedcv",
                                repeats = 3)
 ```
 
-To run the k-nearest neighbors algorithm, the categorical data of the training and testing data will be encoded by using dummy variables. We will set this data to binary variables and get a data frames of 29 columns each. This data will be used for the kNN-Algorithm exclusively.
+To run the k-nearest neighbors algorithm, the categorical data of the training and testing data will be encoded by using dummy variables. We will set this data to binary variables and get a data frames of 29 columns each. This data will be used for the kNN-Algorithm exclusively.  
 ```{r onehot.encoding}
 #one hot encoding (Training data)
 Training.dummy <- dummyVars(" ~.", data=training)
 training.onehot <- data.frame(predict(Training.dummy, newdata = training))
 training.onehot$disease.disease <- as.factor(training.onehot$disease.disease)
 training.onehot$disease.no.disease <- as.factor(training.onehot$disease.no.disease)
-training.onehot$disease.no.disease <- NULL
+training.onehot$disease.disease <- NULL
 #one hot encoding (Testing data)
 Testing.dummy <- dummyVars(" ~.", data=testing)
 testing.onehot <- data.frame(predict(Testing.dummy, newdata = testing))
 testing.onehot$disease.disease <- as.factor(testing.onehot$disease.disease)
 testing.onehot$disease.no.disease <- as.factor(testing.onehot$disease.no.disease)
-testing.onehot$disease.no.disease <- NULL
+testing.onehot$disease.disease <- NULL
+```
+
+## Logistic regression  
+Because the heart disease dataset is a categorical problem we choose the logistic regression as the first modeling apporach. **binomial** as the family parameter indicates that the generalized linear model method we choose is logistic regression.  
+```{r Train.glm, echo=TRUE}
+#Logistic regression (generalized linear model)
+Train.glm <- train(disease ~ ., data=training,
+                   method="glm",
+                   trControl=control.repeat,
+                   family="binomial")
+#apply model on testing
+Model.glm <- predict(Train.glm, testing)
+Conf.glm <- confusionMatrix(Model.glm, testing$disease)
+Conf.glm$table
+Sens.glm <- Conf.glm$byClass[c("Sensitivity")]
+Spec.glm <- Conf.glm$byClass[c("Specificity")]
+Acc.glm <- Conf.glm$overall[["Accuracy"]]
+F1.glm <- F_meas(Model.glm, testing$disease)
+Prec.glm <- Conf.glm$byClass[c("Precision")]
+Prev.glm <- Conf.glm$byClass[c("Prevalence")]
 ```
 
 ## Decision Tree  
-The first modeling approach was a decision tree. These are pretty suitable for the purpose of identifying if several indicators show diseases or not.  
+Decision trees are pretty suitable for the purpose of identifying if several indicators implicate diseases or not.  
 We have used the train function from the caret package and set the rpart method. TuneLength is set to 10, which means that the function uses ten different hyperparameters and chooses the best fitting for the training data. The hyperparameter of rpart is the **complexity parameter**.  
 ```{r Train.dec.tree, echo=TRUE}
 Train.dec.tree <- train(disease ~ ., data=training,
@@ -632,20 +665,31 @@ Train.dec.tree <- train(disease ~ ., data=training,
 
 * 82.90% of patients would have been diagnosed correctly to have heart disease (sensitivity)
 * 77.10% of patients would have been diagnosed correctly to have no heart disease (specificity)
-* The overall accuracy of the decision tree is 79.80%.
+* The overall accuracy of the decision tree is 79.80%.  
 
 ```{r Model.dec.tree, echo=TRUE}
 Model.dec.tree <- predict(Train.dec.tree, testing, type="raw")
-confusionMatrix(Model.dec.tree, testing$disease)$table %>%
+Conf.dec.tree <- confusionMatrix(table(Model.dec.tree, testing$disease))
+Conf.dec.tree$table %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
-Res.dec.tree <- confusionMatrix(Model.dec.tree, testing$disease)$overall[["Accuracy"]]
-Res.dec.tree %>%
-  knitr::kable(col.names = c("Accuracy")) %>% 
+Sens.dec.tree <- confusionMatrix(Model.dec.tree, testing$disease)$byClass[c("Sensitivity")]
+Spec.dec.tree <- confusionMatrix(Model.dec.tree, testing$disease)$byClass[c("Specificity")]
+Acc.dec.tree <- confusionMatrix(Model.dec.tree, testing$disease)$overall[["Accuracy"]]
+F1.dec.tree <- F_meas(Model.dec.tree, testing$disease)
+Prec.dec.tree <- Conf.dec.tree$byClass[c("Precision")]
+Prev.dec.tree <- Conf.dec.tree$byClass[c("Prevalence")]
+tibble(
+  Method=c("Decision tree"), 
+  Sensitivity=c(Sens.dec.tree),
+  Specificity=c(Spec.dec.tree),
+  Accuracy=c(Acc.dec.tree)
+  ) %>%
+  knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
-The classification tree shows that the data was first split at the result of [thal](#thal). Furthermore split at [oldpeak](#oldpeak), [chol](#chol), [exang](#exang), [thalach](#thalach) and [ca](#ca).
+The classification tree shows that the data was first split at the result of [thal](#thal). Furthermore split at [oldpeak](#oldpeak), [chol](#chol), [exang](#exang), [thalach](#thalach) and [ca](#ca).  
 
 * 30% of all patients were predicted to have an abnormal thal and an oldpeak of $\geq$ 0.7
     + 87% of these patients were predicted to have heart disease 
@@ -663,7 +707,7 @@ fancyRpartPlot(Train.dec.tree$finalModel, sub="")
 *Split of categorical data is between 1 (true) and 0 (false). e.g. thalnormal < 0.5 means all abnormal thal results.  
 
 ## Random forest  
-
+With the random forest as an extension of the decision tree there is a high potential in outperforming a single tree with several hundred trees. The number of trees is set to default (n=500).  
 ```{r Train.random.forest, echo=TRUE}
 Train.random.forest <- train(disease ~ ., data=training,
                              method="rf",
@@ -676,16 +720,27 @@ Train.random.forest <- train(disease ~ ., data=training,
 
 ```{r Model.random.forest, echo=TRUE}
 Model.random.forest <- predict(Train.random.forest, testing, type="raw")
-confusionMatrix(Model.random.forest, testing$disease)$table %>%
+Conf.random.forest <- confusionMatrix(Model.random.forest, testing$disease)
+Conf.random.forest$table %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
-Res.random.forest <- confusionMatrix(Model.dec.tree, testing$disease)$overall[["Accuracy"]]
-Res.random.forest %>%
-  knitr::kable(col.names = c("Accuracy")) %>% 
+Sens.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$byClass[c("Sensitivity")]
+Spec.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$byClass[c("Specificity")]
+Acc.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$overall[["Accuracy"]]
+F1.random.forest <- F_meas(Model.random.forest, testing$disease)
+Prec.random.forest <- Conf.random.forest$byClass[c("Precision")]
+Prev.random.forest <- Conf.random.forest$byClass[c("Prevalence")]
+tibble(
+  Method=c("Random forest"), 
+  Sensitivity=c(Sens.random.forest),
+  Specificity=c(Spec.random.forest),
+  Accuracy=c(Acc.random.forest)
+  ) %>%
+  knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
 ```
-
-Best ntree:  
+As we can see the random forest outperformes the decision tree in different evaluation metrics.  
+Now we run this function with different amounts of ntree:  
 ```{r best_ntree, results="hide"}
 modellist <- list()
 for (ntree in c(500, 1000, 1500, 2000, 2500)) {
@@ -700,24 +755,21 @@ for (ntree in c(500, 1000, 1500, 2000, 2500)) {
   modellist[[key]] <- fit
 }
 results <- resamples(modellist)
-summary(results)
 ```
 
+In the next plot we can see that the highest accuracy of the random forest is located at an amount of 500 trees.  
 ```{r dec.tree.accuracy_dotplot}
 dotplot(results, ylab="nTree")
 ```
 
+Finally for random forest we have a look on the importance score of each variable in the dataset. We have already seen the three attributes with the highest importance in the decision tree as decision at quite high nodes.  
 ```{r varImp_Train.random.forest, echo=FALSE}
 varImp(Train.random.forest)
 ```
 
-```{r plot_Train.random.forest}
-plot(Train.random.forest$finalModel, main="train random forest")
-```
-
 ## Support vector machines  
+With the support vector machines we choose a linear method. Using a tuneLength of 5 the train function searches for the optimal tuning parameter of cost.  
 ```{r train.svmLinear}
-#train svmLinear (cv)
 train.svmLinear <- train(disease ~ ., data=training,
                          method = "svmLinear",
                          trControl= control.repeat,
@@ -725,65 +777,31 @@ train.svmLinear <- train(disease ~ ., data=training,
                                       "scale"),
                          # tuneGrid=expand.grid(C=1)
                          tuneLength=5)
-#apply model on testing
-Model.svmLinear <- predict(train.svmLinear, testing)
-confusionMatrix(Model.svmLinear, testing$disease)$table %>%
+Model.svmLinear <- predict(train.svmLinear, testing, type="raw")
+Conf.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)
+Conf.svmLinear$table %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
-Res.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$overall["Accuracy"]
-Res.svmLinear %>%
-  knitr::kable(col.names = c("Accuracy")) %>% 
+Sens.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$byClass[c("Sensitivity")]
+Spec.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$byClass[c("Specificity")]
+Acc.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$overall[["Accuracy"]]
+F1.svmLinear <- F_meas(Model.svmLinear, testing$disease)
+Prec.svmLinear <- Conf.svmLinear$byClass[c("Precision")]
+Prev.svmLinear <- Conf.svmLinear$byClass[c("Prevalence")]
+tibble(
+  Method=c("Svm linear"), 
+  Sensitivity=c(Sens.svmLinear),
+  Specificity=c(Spec.svmLinear),
+  Accuracy=c(Acc.svmLinear)
+  ) %>%
+  knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
-```{r train.svmPoly}
-#train svmPoly (cv)
-train.svmPoly <- train(disease ~ ., data = training,
-                       method = "svmPoly",
-                       preProcess=c("scale",
-                                    "center"),
-                       trControl=control.repeat,
-                       # tuneGrid=expand.grid(degree=1,
-                       #                      scale=1,
-                       #                      C=0.25)
-                       tuneLength=5
-                       )
-#apply model on testing
-Model.svmPoly <- predict(train.svmPoly, testing)
-confusionMatrix(Model.svmPoly, testing$disease)$table %>%
-  knitr::kable() %>% 
-  kableExtra::kable_styling(full_width = FALSE)
-Res.svmPoly <- confusionMatrix(Model.svmPoly, testing$disease)$overall["Accuracy"]
-Res.svmPoly %>%
-  knitr::kable(col.names = c("Accuracy")) %>% 
-  kableExtra::kable_styling(full_width = FALSE)
-```
-
-```{r train.svmRadial}
-#train svmRadial (cv)
-train.svmRadial <- train(disease ~ ., data = training,
-                         method = "svmRadial",
-                         preProcess=c("scale",
-                                      "center"),
-                         trControl=control.repeat,
-                         # tuneGrid=expand.grid(C=0.25,
-                         #                      sigma=0.031)
-                         tuneLength=5
-                         )
-#apply model on testing
-Model.svmRadial <- predict(train.svmRadial, testing)
-confusionMatrix(Model.svmRadial, testing$disease)$table %>%
-  knitr::kable() %>% 
-  kableExtra::kable_styling(full_width = FALSE)
-Res.svmRadial <- confusionMatrix(Model.svmRadial, testing$disease)$overall["Accuracy"]
-Res.svmRadial %>%
-  knitr::kable(col.names = c("Accuracy")) %>% 
-  kableExtra::kable_styling(full_width = FALSE)
-```
-
-## K-nearest neighbors
+## K-nearest neighbors  
+Another modeling apporach in this project is the k-nearest neighbors model. Using a tuneLength of 3 the train function searches for the optimal size of neighbors to be based on as a tuning parameter.  
 ```{r Train.knn}
-Train.knn <- train(disease.disease~., data=training.onehot,
+Train.knn <- train(disease.no.disease~., data=training.onehot,
                method="knn",
                trControl=control.repeat,
                # tuneGrid=expand.grid(k=5)
@@ -793,42 +811,78 @@ Train.knn <- train(disease.disease~., data=training.onehot,
 
 ```{r Model.knn}
 Model.knn <- predict(Train.knn, testing.onehot, type = "raw")
-confusionMatrix(Model.knn, testing.onehot$disease.disease)$table %>%
+Conf.knn <- confusionMatrix(Model.knn, testing.onehot$disease)
+Conf.knn$table %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
-Res.knn <- confusionMatrix(Model.knn, testing.onehot$disease.disease)$overall["Accuracy"]
-Res.knn %>%
-  knitr::kable(col.names = c("Accuracy")) %>% 
+```
+* disease (0); no disease (1)  
+
+```{r Model.knn2}
+Sens.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$byClass[c("Sensitivity")]
+Spec.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$byClass[c("Specificity")]
+Acc.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$overall[["Accuracy"]]
+F1.knn <- F_meas(Model.knn, testing.onehot$disease)
+Prec.knn <- Conf.knn$byClass[c("Precision")]
+Prev.knn <- Conf.knn$byClass[c("Prevalence")]
+tibble(
+  Method=c("K-nearest neighbors"), 
+  Sensitivity=c(Sens.knn),
+  Specificity=c(Spec.knn),
+  Accuracy=c(Acc.knn)
+  ) %>%
+  knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
-```{r bestk}
-ksize <- seq(5, 9, 1)
-k_maxacc <- sapply(ksize, function(ks) {
-  train(disease.disease~., data=training.onehot,
-        method="knn",
-        trControl=control.repeat,
-        tuneGrid=expand.grid(k=ks)
-  )$results$Accuracy
-})
-qplot(ksize, k_maxacc)
-```
-
-# Results  
-```{r results.tibble}
-tibble(Method=c("Decision tree", 
+# Results/Evaluation metrics  
+With different models passed through there is now a bunch of metrics by which we can justify what model is the best to use for the heart disease problem. Besides collecting standard measures for evaluating different models for the problem, we have to take a closer look on the problem itself and its sector of use and consequences of using the model in order to treat patients right.  
+```{r accuracy_f1, echo=FALSE}
+tibble("Method"=c("Logistic regression",
+                "Decision tree", 
                 "Random forest", 
-                "Support vector machine (linear)", 
-                "Support vector machine (polynomial)",
-                "Support vector machine (radial basis function)",
-                "k-nearest neighbors"), 
-Accuracy=c(Res.dec.tree, 
-           Res.random.forest, 
-           Res.svmLinear, 
-           Res.svmPoly,
-           Res.svmRadial,
-           Res.knn)) %>%
+                "Support vector machine (linear)",
+                "k-nearest neighbors"),
+       "Sensitivity/Recall"=c(
+         Sens.glm,
+         Sens.dec.tree,
+         Sens.random.forest,
+         Sens.svmLinear,
+         Sens.knn
+       ),
+       "Specificity"=c(
+         Spec.glm,
+         Spec.dec.tree,
+         Spec.random.forest,
+         Spec.svmLinear,
+         Spec.knn
+         ),
+       "Accuracy"=c(Acc.glm,
+           Acc.dec.tree,
+           Acc.random.forest, 
+           Acc.svmLinear,
+           Acc.knn
+           ),
+      "F1-score"=c(F1.glm,
+          F1.dec.tree,
+          F1.random.forest,
+          F1.svmLinear,
+          F1.knn),
+      "Precision"=c(Prec.glm,
+                  Prec.dec.tree,
+                  Prec.random.forest,
+                  Prec.svmLinear,
+                  Prec.knn)
+) %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
 ```
+
+Usually the focus of prediction approaches in the medical field should be on reducing false negative results to prevent overlooking diseases of a patient. Therefore receiving false negative cases is worse than receiving false positive cases. With this approach we will assess the different models.  
+Sensitivity/Recall also called true positive rate provides information about how precise the model is in order of finding all patients with heart disease. We can see that the decision tree as well as the random forest have the highest sensitivity of 82.9% which means, that eight out of ten patients that have heart disease were diagnosed correctly. K-nearest neighbors estimate shows a poor result for sensitivity, diagnosing six out of ten patients correctly.  
+In terms of specificity, all methods show a good result.  
+Logistic regression and random forest are the only methods that show an overall accuracy over 80.0% as well as a F1-score over 80.0%.  
+With a focus on keeping false negative cases as low as possible the random forest brings solid measurement accuracies over 80.0% in every single metric.  
+
 # Conclusion  
+Since some methods like random forest and logistic regression show sufficient results predicting heart disease, the attributes of the dataset seem to be good indicators. However the dataset was released in 1988 around 40 years ago. It can be assumed that there are additional attributes to diagnose patients to have heart disease or not but more precisely.  

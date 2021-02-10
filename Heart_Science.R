@@ -12,8 +12,6 @@ library(naivebayes)
 library(skimr)
 library(rattle)
 library(randomForest)
-#library(wesanderson)
-#library(magrittr)
 
 options(digits = 3)
 
@@ -110,7 +108,7 @@ summary(HeartData$age)
 
 #mean age
 mean_age <- as.numeric(HeartData %>%
-  summarize(mean_age=mean(age)))
+                         summarize(mean_age=mean(age)))
 
 #age barplot (age_dist)
 HeartData %>%
@@ -280,8 +278,8 @@ HD.chol.median.mean <- HeartData %>%
 HD.chol <- HeartData %>%
   group_by(disease) %>%
   select(disease, chol)
-  
-  ggplot(data=HD.chol, aes(disease, chol, color=disease)) +
+
+ggplot(data=HD.chol, aes(disease, chol, color=disease)) +
   geom_jitter(width = 0.4, alpha = 0.3, size=4) +
   stat_smooth(method="lm", formula=disease~1, se=FALSE) +
   geom_hline(data=HD.chol.median.mean, aes(yintercept = med, color=disease)) +
@@ -289,7 +287,7 @@ HD.chol <- HeartData %>%
   ylab("Cholesterol") +
   theme_fivethirtyeight() +
   theme(axis.title = element_text(), legend.position = "none")
-  
+
 HeartData %>%
   group_by(disease) %>%
   summarize(mean(chol))
@@ -369,7 +367,7 @@ HeartData %>%
   theme_fivethirtyeight() +
   theme(axis.title = element_text()) +
   xlab("exercise induced angina")
-  
+
 #oldpeak - ST depression induced by exercise relative to rest
 #disease oldpeak geompoint(disease_oldpeak)
 HeartData %>%
@@ -409,13 +407,13 @@ HeartData %>%
 #ca - Major vessels colored by flourosopy
 #ca disease (ca_disease)
 HeartData %>%
-    filter(!is.na(ca)) %>%
-    group_by(ca) %>%
-    ggplot(aes(ca, ..count.., fill=disease)) +
-    geom_bar(position="dodge") +
-    theme_fivethirtyeight() +
-    theme(axis.title = element_text()) +
-    xlab("vessels colored")
+  filter(!is.na(ca)) %>%
+  group_by(ca) %>%
+  ggplot(aes(ca, ..count.., fill=disease)) +
+  geom_bar(position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("vessels colored")
 
 # (ca_disease_mean)
 HeartData %>%
@@ -463,40 +461,65 @@ control <- trainControl(method = "cv",
                         p = .9)
 control.repeat <- trainControl(method = "repeatedcv", 
                                number = 10,
-                               repeats = 3,
-                               )
+                               repeats = 3
+)
 
 #one hot encoding (Training data)
 Training.dummy <- dummyVars(" ~.", data=training)
 training.onehot <- data.frame(predict(Training.dummy, newdata = training))
 training.onehot$disease.disease <- as.factor(training.onehot$disease.disease)
 training.onehot$disease.no.disease <- as.factor(training.onehot$disease.no.disease)
-training.onehot$disease.no.disease <- NULL
+training.onehot$disease.disease <- NULL
 #one hot encoding (Testing data)
 Testing.dummy <- dummyVars(" ~.", data=testing)
 testing.onehot <- data.frame(predict(Testing.dummy, newdata = testing))
 testing.onehot$disease.disease <- as.factor(testing.onehot$disease.disease)
 testing.onehot$disease.no.disease <- as.factor(testing.onehot$disease.no.disease)
-testing.onehot$disease.no.disease <- NULL
+testing.onehot$disease.disease <- NULL
+
+#Logistic regression (generalized linear model)
+# (Train.glm)
+Train.glm <- train(disease ~ ., data=training,
+                   method="glm",
+                   trControl=control.repeat,
+                   family="binomial")
+#apply model on testing
+Model.glm <- predict(Train.glm, testing)
+Conf.glm <- confusionMatrix(Model.glm, testing$disease)
+Conf.glm$table
+Sens.glm <- Conf.glm$byClass[c("Sensitivity")]
+Spec.glm <- Conf.glm$byClass[c("Specificity")]
+Acc.glm <- Conf.glm$overall[["Accuracy"]]
+F1.glm <- F_meas(Model.glm, testing$disease)
+Prec.glm <- Conf.glm$byClass[c("Precision")]
+Prev.glm <- Conf.glm$byClass[c("Prevalence")]
 
 #DECISION TREE
 #decision tree train (Train.dec.tree)
 Train.dec.tree <- train(disease ~ ., data=training,
                         method="rpart",
                         trControl=control.repeat,
-                        tuneLength=5
+                        tuneLength=10
 )
 #decision tree train (2) (-)
 Train.dec.tree.2 <- train(disease ~ ., data=training,
-        method="rpart",
-        trControl=control.repeat,
-        tuneLength=10,
-        control=rpart.control(minsplit = 15,
-                              cp = 0.01)
-        )
+                          method="rpart",
+                          trControl=control.repeat,
+                          tuneLength=10,
+                          control=rpart.control(minsplit = 15,
+                                                cp = 0.01)
+)
 #atleast minsplit observations in each node in order for a split to be attempted (because minsplit is set, minbucket is automatically: minsplit/3)
+#apply model on testing
 Model.dec.tree <- predict(Train.dec.tree, testing, type="raw")
-confusionMatrix(table(Model.dec.tree, testing$disease))
+Conf.dec.tree <- confusionMatrix(table(Model.dec.tree, testing$disease))
+Conf.dec.tree$table
+Sens.dec.tree <- confusionMatrix(Model.dec.tree, testing$disease)$byClass[c("Sensitivity")]
+Spec.dec.tree <- confusionMatrix(Model.dec.tree, testing$disease)$byClass[c("Specificity")]
+Acc.dec.tree <- confusionMatrix(Model.dec.tree, testing$disease)$overall[["Accuracy"]]
+F1.dec.tree <- F_meas(Model.dec.tree, testing$disease)
+Prec.dec.tree <- Conf.dec.tree$byClass[c("Precision")]
+Prev.dec.tree <- Conf.dec.tree$byClass[c("Prevalence")]
 
 #example: 90% have disease at thal=(fixed defect, reversible defect) and cp=asymptomatic); 30% of all patients have thal=(fixed defect, reversible defect), cp=asymptomatic)
 fancyRpartPlot(Train.dec.tree$finalModel, sub="")
@@ -504,29 +527,30 @@ fancyRpartPlot(Train.dec.tree$finalModel, sub="")
 #RANDOM FOREST
 #mtry: number of predictor variables per tree
 #TRAIN function
-#train rf (Train.random.forest)
 Train.random.forest <- train(disease ~ ., data=training,
                              method="rf",
-                             metric="Accuracy",
                              preProcess=c("center","scale"),
-                             tuneGrid=expand.grid(.mtry=c(sqrt(ncol(training)))),
-                             trControl=control.repeat,
-                             ntree=2500
+                             tuneLength=10,
+                             trControl=control.repeat
 )
+#apply model on testing
 Model.random.forest <- predict(Train.random.forest, testing, type="raw")
+Conf.random.forest <- confusionMatrix(Model.random.forest, testing$disease)
+Conf.random.forest$table
+Sens.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$byClass[c("Sensitivity")]
+Spec.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$byClass[c("Specificity")]
+Acc.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$overall[["Accuracy"]]
+F1.random.forest <- F_meas(Model.random.forest, testing$disease)
+Prec.random.forest <- Conf.random.forest$byClass[c("Precision")]
+Prev.random.forest <- Conf.random.forest$byClass[c("Prevalence")]
 
-#train rf (2) (Train.random.forest)
-Train.random.forest2 <- train(disease ~ ., data=training,
-                             method="rf", 
-                             trControl=control.repeat,
-                             tuneLength=10
-                             #tuneGrid = data.frame(mtry = sqrt(ncol(training)))
-                             ) #default mtry for categorical response
-
-
-# #result of random forest
-# Result.random.forest <- data.frame(Model.random.forest, testing$disease)
-# plot(Result.random.forest)
+#RANDOM FOREST
+# randomForest.fit <- randomForest(disease ~.,
+#                                  data=training,
+#                                  preProcess=c("center","scale"),
+#                                  mtry=2)
+# randomForest.fit.pred <- predict(randomForest.fit, testing)
+# confusionMatrix(randomForest.fit.pred, testing$disease)
 
 #optimize n:
 # (best_ntree)
@@ -545,6 +569,10 @@ for (ntree in c(500, 1000, 1500, 2000, 2500)) {
 results <- resamples(modellist)
 summary(results)
 
+# #result of random forest
+# Result.random.forest <- data.frame(Model.random.forest, testing$disease)
+# plot(Result.random.forest)
+
 # (dec.tree.accuracy_dotplot)
 dotplot(results, ylab="nTree")
 
@@ -556,13 +584,13 @@ plot(Train.random.forest$finalModel, main="train random forest")
 
 #RANDOMFOREST function
 Train.RF.random.forest <- randomForest(disease ~ ., data=training,
-                                    trControl=control.repeat,
-                                    ntree=2000,
-                                    tuneLength=10,
-                                    tuneGrid = data.frame(mtry = sqrt(ncol(training)))
-                                    #default mtry for categorical response
+                                       trControl=control.repeat,
+                                       ntree=2000,
+                                       tuneLength=10,
+                                       tuneGrid = data.frame(mtry = sqrt(ncol(training)))
+                                       #default mtry for categorical response
 )
-Model.RF.random.forest <- predict(Train.RF.random.forest, testing, type="response") #type=class?
+Model.RF.random.forest <- predict(Train.RF.random.forest, testing, type="response")
 confusionMatrix(Model.RF.random.forest, testing$disease)#$overall["Accuracy"]
 importance(Train.RF.random.forest) #importance/gini index of variables
 #plot trees vs errors
@@ -576,8 +604,8 @@ plot(Train.RF.random.forest)
 # -
 # C (cost): Misclassification parameter (high C: smaller-margin hyperplane/higher cost of misclassification; low C: larger-margin separating hyperplane/low cost of misclassification)
 # degree (Polynomial Degree): Dimension of the model; 3 is default
-# scale (Scale):
-# sigma (Sigma): 
+# scale (Scale)
+# sigma (Sigma)
 
 #train svmLinear (cv)
 train.svmLinear <- train(disease ~ ., data=training,
@@ -588,14 +616,16 @@ train.svmLinear <- train(disease ~ ., data=training,
                          # tuneGrid=expand.grid(C=1)
                          tuneLength=5)
 #apply model on testing
-Model.svmLinear <- predict(train.svmLinear, testing)
-confusionMatrix(Model.svmLinear, testing$disease)$table %>%
-  knitr::kable() %>% 
-  kableExtra::kable_styling(full_width = FALSE)
-Res.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$overall["Accuracy"]
-Res.svmLinear %>%
-  knitr::kable(col.names = c("Accuracy")) %>% 
-  kableExtra::kable_styling(full_width = FALSE)
+Model.svmLinear <- predict(train.svmLinear, testing, type="raw")
+Conf.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)
+Conf.svmLinear$table
+Sens.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$byClass[c("Sensitivity")]
+Spec.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$byClass[c("Specificity")]
+Acc.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$overall[["Accuracy"]]
+F1.svmLinear <- F_meas(Model.svmLinear, testing$disease)
+Prec.svmLinear <- Conf.svmLinear$byClass[c("Precision")]
+Prev.svmLinear <- Conf.svmLinear$byClass[c("Prevalence")]
+
 #train svmPoly (cv)
 train.svmPoly <- train(disease ~ ., data = training,
                        method = "svmPoly",
@@ -609,13 +639,13 @@ train.svmPoly <- train(disease ~ ., data = training,
 )
 #apply model on testing
 Model.svmPoly <- predict(train.svmPoly, testing)
-confusionMatrix(Model.svmPoly, testing$disease)$table %>%
-  knitr::kable() %>% 
-  kableExtra::kable_styling(full_width = FALSE)
-Res.svmPoly <- confusionMatrix(Model.svmPoly, testing$disease)$overall["Accuracy"]
-Res.svmPoly %>%
-  knitr::kable(col.names = c("Accuracy")) %>% 
-  kableExtra::kable_styling(full_width = FALSE)
+Conf.svmPoly <- confusionMatrix(Model.svmPoly, testing$disease)
+Conf.svmPoly$table
+Sens.svmPoly <- confusionMatrix(Model.svmPoly, testing$disease)$byClass[c("Sensitivity")]
+Spec.svmPoly <- confusionMatrix(Model.svmPoly, testing$disease)$byClass[c("Specificity")]
+Acc.svmPoly <- confusionMatrix(Model.svmPoly, testing$disease)$overall[["Accuracy"]]
+F1.svmPoly <- F_meas(Model.svmPoly, testing$disease)
+
 #train svmRadial (cv)
 train.svmRadial <- train(disease ~ ., data = training,
                          method = "svmRadial",
@@ -628,33 +658,33 @@ train.svmRadial <- train(disease ~ ., data = training,
 )
 #apply model on testing
 Model.svmRadial <- predict(train.svmRadial, testing)
-confusionMatrix(Model.svmRadial, testing$disease)$table %>%
-  knitr::kable() %>% 
-  kableExtra::kable_styling(full_width = FALSE)
-Res.svmRadial <- confusionMatrix(Model.svmRadial, testing$disease)$overall["Accuracy"]
-Res.svmRadial %>%
-  knitr::kable(col.names = c("Accuracy")) %>% 
-  kableExtra::kable_styling(full_width = FALSE)
+Conf.svmRadial <- confusionMatrix(Model.svmRadial, testing$disease)
+Conf.svmRadial$table
+Sens.svmRadial <- confusionMatrix(Model.svmRadial, testing$disease)$byClass[c("Sensitivity")]
+Spec.svmRadial <- confusionMatrix(Model.svmRadial, testing$disease)$byClass[c("Specificity")]
+Acc.svmRadial <- confusionMatrix(Model.svmRadial, testing$disease)$overall[["Accuracy"]]
+F1.svmRadial <- F_meas(Model.svmRadial, testing$disease)
 
 # K-NEAREST NEIGHBOURS
-Train.knn <- train(disease.disease~., data=training.onehot,
+Train.knn <- train(disease.no.disease~., data=training.onehot,
                    method="knn",
                    trControl=control.repeat,
                    # tuneGrid=expand.grid(k=5)
                    tuneLength=3
 )
-Model.knn <- predict(Train.knn, testing.onehot, type = "raw")
-confusionMatrix(Model.knn, testing.onehot$disease.disease)$table %>%
-  knitr::kable() %>% 
-  kableExtra::kable_styling(full_width = FALSE)
-Res.knn <- confusionMatrix(Model.knn, testing.onehot$disease.disease)$overall["Accuracy"]
-Res.knn %>%
-  knitr::kable(col.names = c("Accuracy")) %>% 
-  kableExtra::kable_styling(full_width = FALSE)
+Model.knn <- predict(Train.knn, testing.onehot)
+Conf.knn <- confusionMatrix(Model.knn, testing.onehot$disease)
+Conf.knn$table
+Sens.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$byClass[c("Sensitivity")]
+Spec.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$byClass[c("Specificity")]
+Acc.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$overall[["Accuracy"]]
+F1.knn <- F_meas(Model.knn, testing.onehot$disease)
+Prec.knn <- Conf.knn$byClass[c("Precision")]
+Prev.knn <- Conf.knn$byClass[c("Prevalence")]
 
 ksize <- seq(5, 9, 1)
 k_maxacc <- sapply(ksize, function(ks) {
-  train(disease.disease~., data=training.onehot,
+  train(disease.no.disease~., data=training.onehot,
         method="knn",
         trControl=control.repeat,
         tuneGrid=expand.grid(k=ks)
@@ -662,7 +692,5 @@ k_maxacc <- sapply(ksize, function(ks) {
 })
 qplot(ksize, k_maxacc)
 
-
-
 #Safe to csv for tableau analysis
-write.csv(HeartDataRM, "data/heartdata_processed.csv")
+#write.csv(HeartDataRM, "data/heartdata_processed.csv")
