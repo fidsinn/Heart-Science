@@ -12,7 +12,7 @@ output:
     toc: yes
     toc_depth: '3'
     number_sections: yes
-urlcolor: orange
+urlcolor: purple
 linkcolor: purple
 ---
 
@@ -64,14 +64,14 @@ HeartData <- read_csv("data/heartdata.csv")
 
 # Introduction  
 
-The purpose of this report is the analysis and methodology of several health data of patients from 1988. The data shows if a patient has [heart disease](https://www.mayoclinic.org/diseases-conditions/heart-disease/symptoms-causes/syc-20353118). It describes a range of conditions that affect the heart. The data set used is a data set provided by **Donald Bren School of Information and Computer Sciences** from the **University of California, Irvine** originally. This project will concentrate on a database from the **V.A. Medical Center, Long Beach and Cleveland Clinic Foundation** provided created by **Robert Detrano, M.D., Ph.D.**. The data was sourced from [Kaggle](https://www.kaggle.com/ronitf/heart-disease-uci), where the data was initially processed.  
+The purpose of this report is the analysis and methodology of several health data of patients from 1988. The data shows if a patient has [heart disease](https://www.mayoclinic.org/diseases-conditions/heart-disease/symptoms-causes/syc-20353118). It describes a range of conditions that are in connection with the heart. The data set used is a data set provided by **Donald Bren School of Information and Computer Sciences** from the **University of California, Irvine** originally. This project will concentrate on a database from the **V.A. Medical Center, Long Beach and Cleveland Clinic Foundation** created by **Robert Detrano, M.D., Ph.D.**. The data was sourced from [Kaggle](https://www.kaggle.com/ronitf/heart-disease-uci), where the data was initially processed.  
 Origin of this database: [Archive.ics.uci](https://archive.ics.uci.edu/ml/datasets/heart+disease)  
-First step is exploration and cleaning of the dataset. After that, each attribute is examined for its relation to the target variable. In the section of modeling several classification methods are run through to predict whether a patient has heart disease or not. The methods used are **decision tree**, **random forest**, **support vector machines** and **k-nearest neighbors**.
+First step is exploration and cleaning of the dataset. After that, each attribute is examined for its relation to the target variable. In the section of modeling, several classification methods are run through to predict whether a patient has heart disease or not. The methods used are **logistic regression**, **decision tree**, **random forest**, **support vector machines** and **k-nearest neighbors**.
 
 # Data exploration and cleaning  
 ## Data exploration
 
-This report excludes 62 attributes from the original database to work with a subset of 14 attributes, containing **13 features** and **one outcome variable** to consider if a patient has heart disease. The database contains health data of **303 patients**.  
+This report excludes 62 attributes from the original database to work only with a subset of 14 attributes, containing **13 features** and **one outcome variable** to consider if a patient has heart disease. The database contains health data of **303 patients**.  
 On a first view you can see what features will accompany the final outcome variable in this project. Before heading into the analysis we need to understand what the different attributes tell us:
 ```{r headHeartData, echo=FALSE}
 head(HeartData) %>% 
@@ -80,7 +80,7 @@ head(HeartData) %>%
 ```
 
 ## Data cleaning
-For data cleaning some data from the original data base was changed. The levels of 'sex' were changed to 'female' and 'male'. The levels of 'target' were changed to 'disease' and 'no disease' to have a quiet better overview. Furthermore some of the attributes were encoded as factors to enable a better work: **sex, cp, fbs, restecg, exang, slope, ca, thal, disease(target)**.  
+For data cleaning, some data from the original data base was changed. The levels of 'sex' were changed to 'female' and 'male'. The levels of 'target' were changed to 'disease' and 'no disease' to have a quiet better overview. Furthermore some of the attributes were encoded as factors to enable a better work: **sex, cp, fbs, restecg, exang, slope, ca, thal, disease(target)**.  
 
 ```{r clean_sex, echo=TRUE, results="hidden"}
 HeartData <- HeartData %>%
@@ -191,7 +191,7 @@ HeartData %>%
   kable_styling(full_width = FALSE)
 ```
 
-As we can see the proportion of patients with disease was at 45.5% in the database.  
+As we can see the proportion of patients with disease also called prevalence was at 45.5% in the database.  
 
 ## Age  
 
@@ -215,6 +215,7 @@ HeartData %>%
 
 The age range goes from 29 years to 77 year. The median age is at 55 years, while we can see that the most patients are between 55 and 65 years.
 
+This distribution can also be determined by the distribution of patients divided into disease and no disease where most patients with disease are in this range of age.  
 ```{r disease_age, echo=FALSE}
 HeartData %>%
   group_by(disease, age) %>%
@@ -229,7 +230,7 @@ HeartData %>%
 ```{r sex_count, echo=FALSE, message=FALSE}
 HeartData %>%
   group_by(sex) %>%
-  summarize('count'=n()) %>%
+  summarize('count'=n(), disease=mean(disease=="disease")) %>%
   knitr::kable() %>% 
   kable_styling(full_width = FALSE)
 ```
@@ -239,7 +240,7 @@ HeartData %>%
 The distribution by sex is dominated by male patients, around 68% of the patients are male.  
 The mean age of female patients is quite lower than the mean age of male patients.  
 
-This can be seen in the mean of patients that have heart diseases as well:  
+This can be seen in the mean of patients **with** heart diseases as well.  
 **female:**  
 ```{r summary_female_age, echo=FALSE}
 hd_female <- HeartData %>%
@@ -319,31 +320,34 @@ HeartData %>%
 HeartData %>%
   group_by(cp, disease) %>%
   summarize(count=n()) %>%
-  ggplot(aes(cp, count, fill=disease)) +
+  ggplot(aes(cp, count/sum(count), fill=disease)) +
   geom_bar(stat="identity", position="dodge") +
   theme_fivethirtyeight() +
   theme(axis.title = element_text()) +
-  xlab("chest pain type")
+  xlab("chest pain type") +
+  ylab("proportion")
 ```
 
 ## Resting blood pressure {#trestbps}  
-For most patients (68%) the blood pressure is higher than the ideal systolic blood pressure of between 90 and 120mm/Hg. In the second plot we can observe an increasing proportion of disease with a higher systolic resting blood pressure.
+For most patients (68%) the blood pressure is higher than the [ideal systolic blood pressure](https://www.nhs.uk/common-health-questions/lifestyle/what-is-blood-pressure/#:~:text=For%20example%2C%20if%20your%20blood,be%20140%2F90mmHg%20or%20higher) of between 90 and 120mm/Hg. In the second plot we can observe a slightly increasing proportion of disease with a higher systolic resting blood pressure.
 ```{r ideal_trestbps_prop, echo=FALSE}
 HeartData %>%
-  summarize("resting blood pressure >120mm/Hg"=mean(trestbps>120)) %>%
+  summarize("trestbps <= 120mm/Hg"=mean(trestbps<=120), "trestbps > 120mm/Hg"=mean(trestbps>120)) %>%
 knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
 ```
+
 ```{r trestbps_disease_dist, echo=FALSE, message=FALSE}
 HeartData %>%
   mutate(trestbps_rnd=round(trestbps, digits=-1)) %>%
   group_by(trestbps_rnd, disease) %>%
   summarize(count=n()) %>%
-  ggplot(aes(trestbps_rnd, count, fill=disease)) +
+  ggplot(aes(trestbps_rnd, count/sum(count), fill=disease)) +
   geom_bar(stat="identity", position="dodge") +
   theme_fivethirtyeight() +
   theme(axis.title = element_text()) +
-  xlab("resting blood pressure")
+  xlab("resting blood pressure") +
+  ylab("proportion")
 ```
 
 ```{r trestbps_disease_age, echo=FALSE, message=FALSE}
@@ -381,7 +385,7 @@ HeartData %>%
   geom_vline(xintercept = 200)
 ```
 
-This can also be seen in comparison between diseased and healthy patients. The median of cholesterol of both groups is higher than 200.
+This can also be seen in comparison between diseased and healthy patients. The median of cholesterol of both groups is higher than 200 while cholesterol in the group of diseased patients is slightly higher.
 ```{r disease.chol.med, echo=TRUE}
 HD.chol.median.mean <- HeartData %>%
   group_by(disease) %>%
@@ -423,7 +427,7 @@ HeartData %>%
   summarize(mean(fbs==">120"))
 ```
 
-There were 14.90% of patients with a critical value of fasting blood sugar level in the database, while the prevalence of diabetes in the US was 4.90%^2^ in the year 1990. So we can observe a much higher prevalence in the study from 1988.  
+There were 14.90% of patients with a critical value of fasting blood sugar level in the database, while the prevalence of diabetes in the US was 4.90%^2^ in the year 1990. So we can observe a much higher prevalence of patients with diabetes in the study from 1988 than in the total population.  
 
 ^2^[Diabetes trends in the U.S.: 1990-1998](https://care.diabetesjournals.org/content/23/9/1278#:~:text=RESULTS%3A%20The%20prevalence%20of%20diabetes,levels%2C%20and%20nearly%20all%20states.)  
 
@@ -447,7 +451,9 @@ HeartData %>%
   theme(axis.title = element_text())
 ```
 
-## THALACH {thalach}  
+\newpage
+
+## THALACH {#thalach}  
 THALACH is the **maximum heart rate** that has been achieved of each patient.  
 We observe a lower maximum heart rate for patients with disease than without disease:  
 ```{r disease_thalach, echo=FALSE, message=FALSE}
@@ -481,22 +487,27 @@ HeartData %>%
   ylab("thalach (mean)")
 ```
 
+\newpage
+
 ## Exercise induced angina {#exang}  
-We can assume that angina indicates heart disease at exercise more often than without. We can tell by the fact that most patients with exercise induced angina had heart disease but only a minority of patients with heart disease had angina outside the exercises, most were asymptomatic^3^.
+We can assume that angina indicates heart disease at exercise more often than without. We can tell by the fact that most patients with exercise induced angina had heart disease but only a minority of patients with heart disease had angina outside the exercises (most were asymptomatic^3^ ).
 ```{r exang_disease, echo=FALSE, message=FALSE}
 HeartData %>%
   group_by(exang, disease) %>%
-  ggplot(aes(exang, ..count.., fill=disease)) +
+  ggplot(aes(exang, ..count../sum(..count..), fill=disease)) +
   geom_bar(position="dodge") +
   theme_fivethirtyeight() +
   theme(axis.title = element_text()) +
-  ylab("exercise induced angina")
+  xlab("exercise induced angina") +
+  ylab("proportion")
 ```
 
-^3^3.3 chest pain type and disease
+^3^ chest pain type and disease
+
+\newpage
 
 ## ST depression induced by exercise relative to rest {#oldpeak}  
-We can say that a greater [ST depression](https://litfl.com/st-segment-ecg-library/) is a sign of an increased probability of heart disease. The following findings from the database show, that the ST depression increase at exercise for patients with heart disease is greather than for patients without heart disease:  
+We can see that a greater [ST depression](https://litfl.com/st-segment-ecg-library/) is a sign of an increased probability of heart disease. The following findings from the database show, that the ST depression increase at exercise for patients with heart disease is greather than for patients without heart disease:  
 ```{r disease_oldpeak, echo=FALSE, message=FALSE}
 HeartData %>%
   ggplot(aes(disease, oldpeak, color=disease)) +
@@ -513,34 +524,42 @@ HeartData %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
 ```
-Mean and median show increased values of ST depression relation in people with heart disease than in people without heart disease.  
+Mean and median show higher values of ST depression relation in people with heart disease than in people without heart disease.  
+
+\newpage
 
 ## Slope of peak exercise ST segment {#slope}  
+By the slope of [ST segment](https://litfl.com/st-segment-ecg-library/) we can see a higher proportion of patients in categories **flat slope** and **downsloping depression** that have disease than of patients without disease.  
 ```{r slope_disease, echo=FALSE, message=FALSE}
 HeartData %>%
   group_by(slope, disease) %>%
-  ggplot(aes(slope, ..count.., fill=disease)) +
+  ggplot(aes(slope, ..count../sum(..count..), fill=disease)) +
   geom_bar(position="dodge") +
   theme_fivethirtyeight() +
   theme(axis.title = element_text()) +
-  xlab("slope of ST segment")
+  xlab("slope of ST segment") +
+  ylab("proportion")
 ```
+
+\newpage
 
 ## Major vessels colored by flouroscopy {#ca}  
 
 [Flouroscopy](https://www.hopkinsmedicine.org/health/treatment-tests-and-therapies/fluoroscopy-procedure) is an imaging tool which is made for looking on several body systems. In this case the flouroscopy was used to observe the flow of blood through three major vessels in order to evaluate the presence of arterial blockages.  
+
 ```{r ca_disease, echo=FALSE, message=FALSE}
 HeartData %>%
   filter(!is.na(ca)) %>%
     group_by(ca) %>%
-    ggplot(aes(ca, ..count.., fill=disease)) +
+    ggplot(aes(ca, ..count../sum(..count..), fill=disease)) +
     geom_bar(position="dodge") +
     theme_fivethirtyeight() +
     theme(axis.title = element_text()) +
-    xlab("colored vessels")
+    xlab("colored vessels") +
+    ylab("proportion")
 ```
 
-The next plot shows that the more vessels are colored at flouroscopy the higher the proportion of patients with disease.  
+The next plot shows that the more vessels are colored by flouroscopy the higher the proportion of patients with disease.  
 ```{r ca_disease_mean, echo=FALSE, message=FALSE}
 HeartData %>%
   filter(!is.na(ca)) %>%
@@ -555,22 +574,25 @@ HeartData %>%
   scale_fill_gradient(low="lightblue", high="red")
 ```
 
+\newpage
+
 ## Thalium Stress Test Result {#thal}  
 
-[Thalium Stress Test](https://www.healthline.com/health/thallium-stress-test) is a test used to measure how the bloodflow works while exercising or resting.  
+[Thalium Stress Test](https://www.healthline.com/health/thallium-stress-test) is a test used to measure how the blood flow works while exercising or resting.  
 The result was divided into normal result, fixed defect and reversible defect.  
 ```{r thal_disease, echo=FALSE, message=FALSE}
 HeartData %>%
   filter(!is.na(thal)) %>%
     group_by(thal) %>%
-    ggplot(aes(thal, ..count.., fill=disease)) +
+    ggplot(aes(thal, ..count../sum(..count..), fill=disease)) +
     geom_bar(position="dodge") +
     theme_fivethirtyeight() +
     theme(axis.title = element_text()) +
-    xlab("thalium stress test result")
+    xlab("thalium stress test result") +
+    ylab("proportion")
 ```
 
-As we can see, the proportion of disease at normal thalium stress test results is near 20%. While for any type of defect it is higher than 60%.  
+In the next plot we can see that the proportion of diseased patients at normal thalium stress test results is near 20%. While for any type of defect it is higher than 60%.  
 ```{r thal_disease_mean, echo=FALSE, message=FALSE}
 HeartData %>%
   filter(!is.na(thal)) %>%
@@ -585,9 +607,11 @@ HeartData %>%
   scale_fill_gradient(low="lightblue", high="red")
 ```
 
+\newpage
+
 # Methods  
 ## Training and testing set  
-In order to run different machine learning methods on the data we will first check the dataset on NA values.  
+In order to run different machine learning methods on the data we will first check the dataset on NA values. And exclude these entries from the upcoming modelings  
 ```{r sumNA, echo=TRUE}
 sum(is.na(HeartData))
 compl <- as.vector(complete.cases(HeartData))
@@ -616,7 +640,7 @@ control.repeat <- trainControl(method = "repeatedcv",
                                repeats = 3)
 ```
 
-To run the k-nearest neighbors algorithm, the categorical data of the training and testing data will be encoded by using dummy variables. We will set this data to binary variables and get a data frames of 29 columns each. This data will be used for the kNN-Algorithm exclusively.  
+To run the k-nearest neighbors algorithm later, the categorical data of the training and testing data will be encoded by the onehot encoding method using dummy variables. We will set this data to binary variables and get a data frames of 29 columns each. This data will be used for the kNN-Algorithm exclusively.  
 ```{r onehot.encoding}
 #one hot encoding (Training data)
 Training.dummy <- dummyVars(" ~.", data=training)
@@ -632,8 +656,10 @@ testing.onehot$disease.no.disease <- as.factor(testing.onehot$disease.no.disease
 testing.onehot$disease.disease <- NULL
 ```
 
+\newpage
+
 ## Logistic regression  
-Because the heart disease dataset is a categorical problem we choose the logistic regression as the first modeling apporach. **binomial** as the family parameter indicates that the generalized linear model method we choose is logistic regression.  
+Because the heart disease dataset is a categorical problem we choose the logistic regression as the first modeling approach. **Binomial** as the **'family'**-parameter indicates that the generalized linear model method is logistic regression.  
 ```{r Train.glm, echo=TRUE}
 #Logistic regression (generalized linear model)
 Train.glm <- train(disease ~ ., data=training,
@@ -652,6 +678,8 @@ Prec.glm <- Conf.glm$byClass[c("Precision")]
 Prev.glm <- Conf.glm$byClass[c("Prevalence")]
 ```
 
+\newpage
+
 ## Decision Tree  
 Decision trees are pretty suitable for the purpose of identifying if several indicators implicate diseases or not.  
 We have used the train function from the caret package and set the rpart method. TuneLength is set to 10, which means that the function uses ten different hyperparameters and chooses the best fitting for the training data. The hyperparameter of rpart is the **complexity parameter**.  
@@ -661,15 +689,15 @@ Train.dec.tree <- train(disease ~ ., data=training,
         trControl=control.repeat,
         tuneLength=10
 )
+Model.dec.tree <- predict(Train.dec.tree, testing, type="raw")
+Conf.dec.tree <- confusionMatrix(table(Model.dec.tree, testing$disease))
 ```
 
 * 82.90% of patients would have been diagnosed correctly to have heart disease (sensitivity)
 * 77.10% of patients would have been diagnosed correctly to have no heart disease (specificity)
 * The overall accuracy of the decision tree is 79.80%.  
 
-```{r Model.dec.tree, echo=TRUE}
-Model.dec.tree <- predict(Train.dec.tree, testing, type="raw")
-Conf.dec.tree <- confusionMatrix(table(Model.dec.tree, testing$disease))
+```{r Model.dec.tree, echo=FALSE}
 Conf.dec.tree$table %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
@@ -689,25 +717,27 @@ tibble(
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
-The classification tree shows that the data was first split at the result of [thal](#thal). Furthermore split at [oldpeak](#oldpeak), [chol](#chol), [exang](#exang), [thalach](#thalach) and [ca](#ca).  
+The following classification tree shows that the data was first split at the result of [thal](#thal). Furthermore split at [oldpeak](#oldpeak), [chol](#chol), [exang](#exang), [thalach](#thalach) and [ca](#ca).  
 
 * 30% of all patients were predicted to have an abnormal thal and an oldpeak of $\geq$ 0.7
     + 87% of these patients were predicted to have heart disease 
 * 9% of patients were predicted to have an abnormal thal, an oldpeak of $\geq$ 0.7 and chol $\geq$ 228
     + 67% of these patients were predicted to have heart disease 
-* 5% of all patients were predicted to have a normal thal, exang and thalach < 140
+* 6% of all patients were predicted to have a normal thal, exercise induced angina and thalach >= 140
     + 77% of these patients were predicted to have no heart disease 
 * 32% of the patients were predicted to have a normal thal, exercise induced angina, ca $\not=$ 1 and have oldpeak $\geq$ 1.7
     + 94% of these patients were predicted to have no heart disease 
 
-```{r plot_Train.dec.tree, echo=TRUE}
+```{r plot_Train.dec.tree, echo=FALSE}
 fancyRpartPlot(Train.dec.tree$finalModel, sub="")
 ```
 
-*Split of categorical data is between 1 (true) and 0 (false). e.g. thalnormal < 0.5 means all abnormal thal results.  
+*Split of categorical data is between 1 (true) and 0 (false) - e.g. thalnormal < 0.5 means all abnormal thal results.  
+
+\newpage
 
 ## Random forest  
-With the random forest as an extension of the decision tree there is a high potential in outperforming a single tree with several hundred trees. The number of trees is set to default (n=500).  
+With the random forest as an extension of the decision tree there is a high potential in outperforming a single tree by using several hundred trees. The number of trees is set to default (n=500).  
 ```{r Train.random.forest, echo=TRUE}
 Train.random.forest <- train(disease ~ ., data=training,
                              method="rf",
@@ -716,11 +746,11 @@ Train.random.forest <- train(disease ~ ., data=training,
                              tuneLength=10,
                              trControl=control.repeat
                              )
-```
-
-```{r Model.random.forest, echo=TRUE}
 Model.random.forest <- predict(Train.random.forest, testing, type="raw")
 Conf.random.forest <- confusionMatrix(Model.random.forest, testing$disease)
+```
+
+```{r Model.random.forest, echo=FALSE}
 Conf.random.forest$table %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
@@ -739,8 +769,8 @@ tibble(
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
 ```
-As we can see the random forest outperformes the decision tree in different evaluation metrics.  
-Now we run this function with different amounts of ntree:  
+
+As we can see the random forest outperformes the decision tree. Now we run this function with different amounts of ntree:  
 ```{r best_ntree, results="hide"}
 modellist <- list()
 for (ntree in c(500, 1000, 1500, 2000, 2500)) {
@@ -757,19 +787,55 @@ for (ntree in c(500, 1000, 1500, 2000, 2500)) {
 results <- resamples(modellist)
 ```
 
-In the next plot we can see that the highest accuracy of the random forest is located at an amount of 500 trees.  
+In the next plot we can see that the highest accuracy of the random forest is located at an amount of 2500 trees.  
 ```{r dec.tree.accuracy_dotplot}
 dotplot(results, ylab="nTree")
 ```
 
-Finally for random forest we have a look on the importance score of each variable in the dataset. We have already seen the three attributes with the highest importance in the decision tree as decision at quite high nodes.  
+So we correct the amount of trees upwards.
+```{r Train.random.forest.NEW, echo=TRUE}
+Train.random.forest <- train(disease ~ ., data=training,
+                             method="rf",
+                             metric="Accuracy",
+                             preProcess=c("center","scale"),
+                             ntree=2500,
+                             tuneLength=10,
+                             trControl=control.repeat
+                             )
+Model.random.forest <- predict(Train.random.forest, testing, type="raw")
+Conf.random.forest <- confusionMatrix(Model.random.forest, testing$disease)
+```
+
+```{r Model.random.forest2, echo=FALSE}
+Conf.random.forest$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Sens.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$byClass[c("Sensitivity")]
+Spec.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$byClass[c("Specificity")]
+Acc.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$overall[["Accuracy"]]
+F1.random.forest <- F_meas(Model.random.forest, testing$disease)
+Prec.random.forest <- Conf.random.forest$byClass[c("Precision")]
+Prev.random.forest <- Conf.random.forest$byClass[c("Prevalence")]
+tibble(
+  Method=c("Random forest"), 
+  Sensitivity=c(Sens.random.forest),
+  Specificity=c(Spec.random.forest),
+  Accuracy=c(Acc.random.forest)
+  ) %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+Finally for random forest we have a look on the importance score of each variable in the dataset. We have already seen the attributes with the highest importance in the decision tree as decision at quite high nodes.  
 ```{r varImp_Train.random.forest, echo=FALSE}
 varImp(Train.random.forest)
 ```
 
+\newpage
+
 ## Support vector machines  
 With the support vector machines we choose a linear method. Using a tuneLength of 5 the train function searches for the optimal tuning parameter of cost.  
-```{r train.svmLinear}
+```{r train.svmLinear, echo=TRUE}
 train.svmLinear <- train(disease ~ ., data=training,
                          method = "svmLinear",
                          trControl= control.repeat,
@@ -779,6 +845,9 @@ train.svmLinear <- train(disease ~ ., data=training,
                          tuneLength=5)
 Model.svmLinear <- predict(train.svmLinear, testing, type="raw")
 Conf.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)
+```
+
+```{r model.svmLinear, echo=FALSE}
 Conf.svmLinear$table %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
@@ -798,6 +867,8 @@ tibble(
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
+\newpage
+
 ## K-nearest neighbors  
 Another modeling apporach in this project is the k-nearest neighbors model. Using a tuneLength of 3 the train function searches for the optimal size of neighbors to be based on as a tuning parameter.  
 ```{r Train.knn}
@@ -807,18 +878,18 @@ Train.knn <- train(disease.no.disease~., data=training.onehot,
                # tuneGrid=expand.grid(k=5)
                tuneLength=3
   )
-```
-
-```{r Model.knn}
 Model.knn <- predict(Train.knn, testing.onehot, type = "raw")
 Conf.knn <- confusionMatrix(Model.knn, testing.onehot$disease)
+```
+
+```{r Model.knn, echo=FALSE}
 Conf.knn$table %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
 ```
 * disease (0); no disease (1)  
 
-```{r Model.knn2}
+```{r Model.knn2, echo=FALSE}
 Sens.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$byClass[c("Sensitivity")]
 Spec.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$byClass[c("Specificity")]
 Acc.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$overall[["Accuracy"]]
@@ -834,6 +905,8 @@ tibble(
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
 ```
+
+\newpage
 
 # Results/Evaluation metrics  
 With different models passed through there is now a bunch of metrics by which we can justify what model is the best to use for the heart disease problem. Besides collecting standard measures for evaluating different models for the problem, we have to take a closer look on the problem itself and its sector of use and consequences of using the model in order to treat patients right.  
@@ -878,11 +951,10 @@ tibble("Method"=c("Logistic regression",
   kableExtra::kable_styling(full_width = FALSE)
 ```
 
-Usually the focus of prediction approaches in the medical field should be on reducing false negative results to prevent overlooking diseases of a patient. Therefore receiving false negative cases is worse than receiving false positive cases. With this approach we will assess the different models.  
-Sensitivity/Recall also called true positive rate provides information about how precise the model is in order of finding all patients with heart disease. We can see that the decision tree as well as the random forest have the highest sensitivity of 82.9% which means, that eight out of ten patients that have heart disease were diagnosed correctly. K-nearest neighbors estimate shows a poor result for sensitivity, diagnosing six out of ten patients correctly.  
-In terms of specificity, all methods show a good result.  
+Usually the focus of prediction approaches in the medical field should be on **reducing false negative results** to prevent overlooking diseases of a patient. Therefore receiving false negative cases is worse than receiving false positive cases. With this approach we will assess the different models.  
+**Sensitivity/Recall** also called true positive rate provides information about how precise the model is in order of finding all patients with heart disease. We can see that the decision tree as well as the random forest have the highest sensitivity of 82.9% which means, that eight out of ten patients that have heart disease were diagnosed correctly. K-nearest neighbors estimate shows a poor result for sensitivity, only diagnosing six out of ten patients correctly. In terms of specificity, all methods show a good result.  
 Logistic regression and random forest are the only methods that show an overall accuracy over 80.0% as well as a F1-score over 80.0%.  
 With a focus on keeping false negative cases as low as possible the random forest brings solid measurement accuracies over 80.0% in every single metric.  
 
 # Conclusion  
-Since some methods like random forest and logistic regression show sufficient results predicting heart disease, the attributes of the dataset seem to be good indicators. However the dataset was released in 1988 around 40 years ago. It can be assumed that there are additional attributes to diagnose patients to have heart disease or not but more precisely.  
+Since some methods like random forest and logistic regression show sufficient results, the attributes of the dataset seem to be good indicators to predict heart disease. However the dataset was released in 1988 around 40 years ago. It can be assumed that there are additional attributes to diagnose patients to have heart disease but more precisely.  
