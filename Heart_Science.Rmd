@@ -193,6 +193,8 @@ HeartData %>%
 
 As we can see the proportion of patients with disease also called prevalence was at 45.5% in the database.  
 
+\newpage
+
 ## Age  
 
 ```{r age_summary, echo=FALSE, message=FALSE}
@@ -224,6 +226,8 @@ HeartData %>%
   theme_fivethirtyeight() +
   theme(axis.title = element_text())
 ```
+
+\newpage
 
 ## Sex  
 
@@ -287,7 +291,7 @@ HeartData %>%
   theme(axis.title = element_text())
 ```
 
-\  
+\newpage
 
 ## Chest pain type {#cp}  
 
@@ -328,6 +332,8 @@ HeartData %>%
   ylab("proportion")
 ```
 
+\newpage
+
 ## Resting blood pressure {#trestbps}  
 For most patients (68%) the blood pressure is higher than the [ideal systolic blood pressure](https://www.nhs.uk/common-health-questions/lifestyle/what-is-blood-pressure/#:~:text=For%20example%2C%20if%20your%20blood,be%20140%2F90mmHg%20or%20higher) of between 90 and 120mm/Hg. In the second plot we can observe a slightly increasing proportion of disease with a higher systolic resting blood pressure.
 ```{r ideal_trestbps_prop, echo=FALSE}
@@ -366,6 +372,8 @@ HeartData %>%
   ylab("proportion disease") +
   theme(legend.position = "none")
 ```
+
+\newpage
 
 ## Serum cholesterol {#chol}  
 Since there is too little information about what type of cholesterol level is given we assume total cholesterol. [Healthy cholesterol level](https://medlineplus.gov/cholesterollevelswhatyouneedtoknow.html) for adults is between 125mg/dL and 200mg/dL.
@@ -406,6 +414,8 @@ HD.chol <- HeartData %>%
   theme(axis.title = element_text(), legend.position = "none")
 ```
 
+\newpage
+
 ## Fasting blood sugar {#fbs}  
 Normal [blood sugar levels](https://www.diabetes.co.uk/diabetes_care/blood-sugar-level-ranges.html) of **non-diabetic** people are between **72mg/dL** and **99mg/dL** when fasting. Fasting blood sugar levels of **100mg/dL** up to **125mg/dL** are already described as **prediabetic**, while **fbs > 125mg/dL** are diagnosed as **diabetic**.  
 The study shows two possible outcomes of **fbs**: **<= 120mg/dL** and **>120mg/dL**.It must be considered, that people with a **fbs >120mg/dL** are at greater risk of developing heart disease or [cardiovascular disease](https://www.nhs.uk/conditions/cardiovascular-disease/), however the symptoms of the patient may be caused by diabetes and secondary diseases.  
@@ -430,6 +440,8 @@ HeartData %>%
 There were 14.90% of patients with a critical value of fasting blood sugar level in the database, while the prevalence of diabetes in the US was 4.90%^2^ in the year 1990. So we can observe a much higher prevalence of patients with diabetes in the study from 1988 than in the total population.  
 
 ^2^[Diabetes trends in the U.S.: 1990-1998](https://care.diabetesjournals.org/content/23/9/1278#:~:text=RESULTS%3A%20The%20prevalence%20of%20diabetes,levels%2C%20and%20nearly%20all%20states.)  
+
+\newpage
 
 ## Resting electrocardiographic results {#restecg}  
 As results of the [restecg](https://www.mayoclinic.org/tests-procedures/ekg/about/pac-20384983) there are three potential outcomes:  

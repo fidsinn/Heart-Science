@@ -9,7 +9,7 @@ The data that was used can be found at [Kaggle](https://www.kaggle.com/ronitf/he
 ## Files
 
 * Report:
-	* Heart_Science.pdf (long version of the report)
+	* Heart_Science.pdf (pdf version of the report)
 * Script:
 	* Heart_Science.R (R script)
 * R Markdown:
