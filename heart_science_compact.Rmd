@@ -1,0 +1,819 @@
+---
+title: "Heart Disease Science (compact version)"
+author: "Finn B."
+date: "2/14/2021"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: '3'
+    number_sections: yes
+  prettydoc::html_pretty:
+    theme: hpstr
+    highlight: github
+  pdf_document: default
+urlcolor: purple
+linkcolor: purple
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries, include=FALSE}
+if(!require(psych)) install.packages("psych", repos = "http://cran.us.r-project.org")
+if(!require(plyr)) install.packages("plyr", repos = "http://cran.us.r-project.org")
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(ggthemes)) install.packages("ggthemes", repos = "http://cran.us.r-project.org")
+if(!require(kableExtra)) install.packages("kableExtra", repos = "http://cran.us.r-project.org")
+if(!require(rafalib)) install.packages("rafalib", repos = "http://cran.us.r-project.org")
+if(!require(kernlab)) install.packages("kernlab", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
+if(!require(rattle)) install.packages("rattle", repos = "http://cran.us.r-project.org")
+if(!require(pROC)) install.packages("pROC", repos = "http://cran.us.r-project.org")
+
+library(psych)
+library(plyr)
+library(tidyverse)
+library(ggthemes)
+library(kableExtra)
+library(rafalib)
+library(kernlab)
+library(caret)
+library(rpart)
+library(rattle)
+library(pROC)
+```
+
+```{r digits, include=FALSE}
+options(digits = 3)
+```
+
+```{r readData, include=FALSE}
+HeartData <- read_csv("data/heartdata.csv")
+```
+
+![](./resources/title.png)
+
+**To make sure the links work properly, please download the document from Github.**  
+
+```{r clean, echo=FALSE, results="hidden"}
+HeartData$sex <- factor(HeartData$sex)
+levels(HeartData$sex) <- c("female", "male")
+
+HeartData$cp <- factor(HeartData$cp)
+levels(HeartData$cp) <- c("asymptomatic", 
+                          "atypical angina", 
+                          "non anginal pain", 
+                          "typical angina")
+
+HeartData$fbs <- factor(HeartData$fbs)
+levels(HeartData$fbs) <- c("<=120", 
+                           ">120")
+
+HeartData$restecg <- factor(HeartData$restecg)
+levels(HeartData$restecg) <- c("left vetricular hypertrophy", 
+                               "normal",
+                               "st-t abnormality")
+
+HeartData$exang <- factor(HeartData$exang)
+levels(HeartData$exang) <- c("no", 
+                               "yes")
+
+HeartData$slope <- factor(HeartData$slope)
+levels(HeartData$slope) <- c("downsloping", 
+                             "flat",
+                             "upsloping")
+
+HeartData$ca <- factor(HeartData$ca)
+levels(HeartData$ca) <- c(0, 1, 2, 3, NA)
+
+HeartData$thal <- factor(HeartData$thal)
+levels(HeartData$thal) <- c(NA, 
+                            "fixed defect", 
+                            "normal", 
+                            "reversible defect")
+
+HeartData$disease <- HeartData$target
+HeartData$target <- NULL
+HeartData$disease <- factor(HeartData$disease)
+levels(HeartData$disease) <- c("disease", "no disease")
+attr(HeartData, 'spec') <- NULL
+```
+
+```{r headHeartData2, echo=FALSE}
+head(HeartData) %>% 
+  knitr::kable() %>%
+  kableExtra::kable_styling(latex_options="scale_down")
+```
+
+Attribute   | Meaning
+----------- | --------
+age | Patients age (29-77 years)
+sex | Female (0) and Male (1)
+cp - **chest pain type** | asymptomatic (0); atypical angina (1); non-anginal pain (2); typical angina (3)
+trestbps - **resting blood pressure** | in mm/Hg on admission to the hospital^1^
+chol - **serum cholesterol** | in mg/dl
+fbs - **fasting blood sugar** | > 120 mg/dl; no(0) yes(1)
+restecg - **resting electrocardiographic results**| probable or definite left ventricular hypertrophy by Estes' criteria(0); normal(1); having ST-T wave abnormality(2)
+thalach | maximum heart rate achieved
+exang - **exercise induced angina** | no(0); yes(1)
+oldpeak | ST depression induced by exercise relative to rest
+slope - **slope of peak exercise ST segment** | downsloping(0); flat(1); upsloping(2)
+ca - **number of major vessels colored by flouroscopy** | vessels(0-3); NA(4)
+thal - **Thalium Stress Test Result** | NA(0); fixed defect(1); normal(2); reversible defect(3)
+disease - **angiographic disease status** | > 50% diameter narrowing (0); < 50% diameter narrowing (1)
+
+\newpage
+
+# Data analysis  
+## Disease  
+```{r disease_summary, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(disease) %>%
+  summarize("cases"=n()) %>%
+  knitr::kable() %>% 
+  kable_styling(full_width = FALSE)
+```
+
+\newpage
+
+## Age  
+```{r age_dist, echo=FALSE, message=FALSE}
+HeartData %>%
+  mutate(age_rnd=round(age, digits=-1)) %>%
+  group_by(age_rnd) %>%
+  summarize(count=n()) %>%
+  ggplot(aes(age_rnd, count, fill="darkred")) +
+  geom_bar(stat="identity") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  xlab("age")
+```
+
+```{r disease_age, echo=FALSE}
+HeartData %>%
+  group_by(disease, age) %>%
+  ggplot(aes(disease, age, col=disease)) +
+  geom_violin(alpha=0.3) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text())
+```
+
+\newpage
+
+## Sex  
+```{r sex_count, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(sex) %>%
+  summarize('count'=n(), disease=mean(disease=="disease")) %>%
+  knitr::kable() %>% 
+  kable_styling(full_width = FALSE)
+```
+
+```{r sex_age_disease, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(sex, age) %>%
+  ggplot(aes(x=sex, y=age, fill=disease)) +
+  geom_dotplot(binaxis = "y", 
+               stackdir = "center", 
+               alpha=0.7, 
+               binwidth = 1.5) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text())
+```
+
+\newpage
+
+## Chestpain
+
+```{r cp_disease_dist, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(cp, disease) %>%
+  summarize(count=n()) %>%
+  ggplot(aes(cp, count/sum(count), fill=disease)) +
+  geom_bar(stat="identity", position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("chest pain type") +
+  ylab("proportion")
+```
+
+\newpage
+
+## Resting blood pressure {#trestbps}  
+
+```{r trestbps_disease_dist, echo=FALSE, message=FALSE}
+HeartData %>%
+  mutate(trestbps_rnd=round(trestbps, digits=-1)) %>%
+  group_by(trestbps_rnd, disease) %>%
+  summarize(count=n()) %>%
+  ggplot(aes(trestbps_rnd, count/sum(count), fill=disease)) +
+  geom_bar(stat="identity", position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("resting blood pressure") +
+  ylab("proportion")
+```
+
+```{r trestbps_disease_age, echo=FALSE, message=FALSE}
+HeartData %>%
+  mutate(trestbps_rnd=round(trestbps, digits=-1)) %>%
+  group_by(trestbps_rnd) %>%
+  summarize(prop_disease=mean(disease=="disease"), 
+            prop_age=round(mean(age), digits = 0), 
+            count=n()) %>%
+  filter(count>=5) %>%
+  ggplot(aes(trestbps_rnd, prop_disease, fill="")) +
+  geom_bar(stat="identity") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("resting blood pressure") +
+  ylab("proportion (disease)") +
+  theme(legend.position = "none")
+```
+
+\newpage
+
+## Serum cholesterol {#chol}  
+
+```{r disease.chol.med, echo=FALSE, message=FALSE}
+HD.chol.median.mean <- HeartData %>%
+  group_by(disease) %>%
+  summarize(me=mean(chol), med=median(chol))
+
+HD.chol <- HeartData %>%
+  group_by(disease) %>%
+  select(disease, chol)
+  
+  ggplot(data=HD.chol, aes(disease, chol, color=disease)) +
+  geom_jitter(width = 0.4, alpha = 0.3, size=4) +
+  stat_smooth(method="lm", formula=disease~1, se=FALSE) +
+  geom_hline(data=HD.chol.median.mean, aes(yintercept = med, color=disease)) +
+  geom_hline(yintercept=200, linetype = "dashed") +
+  xlab("Disease") +
+  ylab("Cholesterol") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none")
+```
+
+\newpage
+
+## Resting electrocardiographic results {#restecg}  
+
+```{r restecg_disease, echo=FALSE}
+HeartData %>%
+  group_by(restecg, disease) %>%
+  ggplot(aes(x=restecg, 
+             y=..count../sum(..count..), 
+             fill=disease)) +
+  geom_bar(position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  ylab("proportion")
+```
+
+\newpage
+
+## THALACH {#thalach}  
+
+```{r disease_thalach, echo=FALSE, message=FALSE}
+HeartData %>%
+  ggplot(aes(x=disease, y=thalach, color=disease)) +
+  geom_jitter(width = 0.3, alpha = 0.3, size=4) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  ylab("thalach")
+```
+
+```{r age_mean_thalach_disease, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(age, disease) %>%
+  summarize(count=n(), mean_thalach=mean(thalach)) %>%
+  filter(count>1) %>%
+  ggplot(aes(x=age, y=mean_thalach, color=disease)) +
+  geom_point() +
+  geom_smooth(span = 0.5) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  ylab("thalach (mean)")
+```
+
+\newpage
+
+## Exercise induced angina {#exang}  
+
+```{r exang_disease, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(exang, disease) %>%
+  ggplot(aes(exang, ..count../sum(..count..), fill=disease)) +
+  geom_bar(position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("exercise induced angina") +
+  ylab("proportion")
+```
+
+\newpage
+
+## ST depression induced by exercise relative to rest {#oldpeak}  
+
+```{r disease_oldpeak, echo=FALSE, message=FALSE}
+HD.oldpeak.median.mean <- HeartData %>%
+  group_by(disease) %>%
+  summarize(me=mean(oldpeak), med=median(oldpeak))
+
+HeartData %>%
+  ggplot(aes(disease, oldpeak, color=disease)) +
+  geom_jitter(width = 0.4, alpha = 0.3, size=4) +
+  geom_hline(data=HD.oldpeak.median.mean, aes(yintercept = med, color=disease)) +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  ylab("ST depression (relative)")
+```
+
+\newpage
+
+## Slope of peak exercise ST segment {#slope}  
+
+```{r slope_disease, echo=FALSE, message=FALSE}
+HeartData %>%
+  group_by(slope, disease) %>%
+  ggplot(aes(slope, ..count../sum(..count..), fill=disease)) +
+  geom_bar(position="dodge") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text()) +
+  xlab("slope of ST segment") +
+  ylab("proportion")
+```
+
+\newpage
+
+## Major vessels colored by flouroscopy {#ca}  
+
+```{r ca_disease_mean, echo=FALSE, message=FALSE}
+HeartData %>%
+  filter(!is.na(ca)) %>%
+  group_by(ca) %>%
+  summarize(ca_mean=mean(disease=="disease")) %>%
+  ggplot(aes(ca, ca_mean, fill=ca_mean)) +
+  geom_bar(stat="identity") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  xlab("colored vessels") +
+  ylab("proportion of disease") +
+  scale_fill_gradient(low="lightblue", high="red")
+```
+
+\newpage
+
+## Thalium Stress Test Result {#thal}  
+
+```{r thal_disease_mean, echo=FALSE, message=FALSE}
+HeartData %>%
+  filter(!is.na(thal)) %>%
+  group_by(thal) %>%
+  summarize(thal_mean=mean(disease=="disease")) %>%
+  ggplot(aes(thal, thal_mean, fill=thal_mean)) +
+  geom_bar(stat="identity") +
+  theme_fivethirtyeight() +
+  theme(axis.title = element_text(), legend.position = "none") +
+  xlab("thalium stress test result") +
+  ylab("proportion of disease") +
+  scale_fill_gradient(low="lightblue", high="red")
+```
+
+\newpage
+
+# Methods  
+## Training and testing set  
+
+* **methods:** 
+    + **logistic regression** 
+    + **decision tree** 
+    + **random forest** 
+    + **support vector machine (linear)** 
+    + **k-nearest neighbors** 
+* remove incomplete cases/NA (7 cases) 
+* set seed - as.integer(Sys.time()) (last 5 characters) 
+* split into training and testing set 
+    + training (70%) 
+    + testing (30%) 
+* set cross-validation 
+    + repeatedcv 
+    + number: 10
+    + repeats: 3 
+* one-hot encoding (for kNN)
+    + training 
+    + testing 
+
+```{r sumNA, include=FALSE, comment=NA}
+sum(is.na(HeartData))
+#HeartData %>% filter_all(any_vars(is.na(.)))
+HeartData <- HeartData[complete.cases(HeartData), ]
+```
+
+```{r set.seed, include=FALSE, warning=FALSE}
+set.seed(50866)
+```
+
+```{r dataPartition, include=FALSE, warning=FALSE}
+test_index <- createDataPartition(y = HeartData$disease,
+                                  p = 0.7,
+                                  list = FALSE)
+training <- HeartData[test_index,]
+testing <- HeartData[-test_index,]
+
+levels(training$disease) <- c("disease", "no disease")
+training$disease <- factor(training$disease, 
+                           levels = levels(training$disease), 
+                           labels = make.names(levels(training$disease)))
+
+levels(testing$disease) <- c("disease", "no disease")
+testing$disease <- factor(testing$disease, 
+                          levels = levels(testing$disease), 
+                          labels = make.names(levels(testing$disease)))
+```
+
+```{r control.repeat, include=FALSE, warning=FALSE}
+control.repeat <- trainControl(method = "repeatedcv", 
+                               number = 10,
+                               repeats = 3,
+                               classProbs=T,
+                               savePredictions = T)
+```
+
+```{r onehot.encoding, include=FALSE}
+#one hot encoding (Training data)
+Training.dummy <- dummyVars(" ~.", data=training)
+training.onehot <- data.frame(predict(Training.dummy, newdata = training))
+training.onehot$disease.no.disease <- factor(training.onehot$disease.no.disease)
+levels(training.onehot$disease.no.disease) <- c("disease", "no disease")
+training.onehot$disease.no.disease <- factor(training.onehot$disease.no.disease, 
+                                             levels = levels(training.onehot$disease.no.disease), 
+                                             labels = make.names(levels(training.onehot$disease.no.disease)))
+training.onehot$disease.disease <- NULL
+#one hot encoding (Testing data)
+Testing.dummy <- dummyVars(" ~.", data=testing)
+testing.onehot <- data.frame(predict(Testing.dummy, newdata = testing))
+testing.onehot$disease.no.disease <- factor(testing.onehot$disease.no.disease)
+levels(testing.onehot$disease.no.disease) <- c("disease", "no disease")
+testing.onehot$disease.no.disease <- factor(testing.onehot$disease.no.disease, 
+                                             levels = levels(testing.onehot$disease.no.disease), 
+                                             labels = make.names(levels(testing.onehot$disease.no.disease)))
+testing.onehot$disease.disease <- NULL
+```
+
+\newpage
+
+## Logistic regression  
+
+* function: caret::train
+* method: glm 
+* family: binomial 
+* trControl: repeatedcv 
+* tuneGrid: - 
+
+```{r Train.glm, include=FALSE}
+#train logistic regression (generalized linear model)
+Train.glm <- caret::train(disease ~ ., data=training,
+                   method="glm",
+                   trControl=control.repeat,
+                   family="binomial",
+                   na.action=na.exclude)
+#apply model on testing
+Model.glm.roc <- predict(Train.glm, testing, type="prob")
+Model.glm <- predict(Train.glm, testing, type="raw")
+#confMatrix
+Conf.glm <- confusionMatrix(Model.glm, testing$disease)
+```
+
+```{r print_Conf.glm, echo=FALSE}
+Conf.glm$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Sens.glm <- Conf.glm$byClass[c("Sensitivity")]
+Spec.glm <- Conf.glm$byClass[c("Specificity")]
+Acc.glm <- Conf.glm$overall[["Accuracy"]]
+F1.glm <- F_meas(Model.glm, testing$disease)
+Prec.glm <- Conf.glm$byClass[c("Precision")]
+Prev.glm <- Conf.glm$byClass[c("Prevalence")]
+tibble(
+  Method=c("Logistic regression"), 
+  Sensitivity=c(Sens.glm),
+  Specificity=c(Spec.glm),
+  Accuracy=c(Acc.glm)
+  ) %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+\newpage
+
+## Decision Tree  
+
+* function: caret::train 
+* method: rpart 
+* trControl: repeatedcv 
+* tuneGrid: cp=0.001 
+
+```{r Train.dec.tree, include=FALSE}
+#train decision tree
+Train.dec.tree <- caret::train(disease ~ ., data=training,
+                        method="rpart",
+                        trControl=control.repeat,
+                        tuneGrid=expand.grid(cp=0.001),
+                        # tuneLength=10,
+                        na.action=na.exclude)
+#apply model on testing
+Model.dec.tree.roc <- predict(Train.dec.tree, testing, type="prob")
+Model.dec.tree <- predict(Train.dec.tree, testing, type="raw")
+#confMatrix
+Conf.dec.tree <- confusionMatrix(table(Model.dec.tree, testing$disease))
+```
+
+```{r print_Conf.dec.tree, echo=FALSE}
+Conf.dec.tree$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Sens.dec.tree <- confusionMatrix(Model.dec.tree, testing$disease)$byClass[c("Sensitivity")]
+Spec.dec.tree <- confusionMatrix(Model.dec.tree, testing$disease)$byClass[c("Specificity")]
+Acc.dec.tree <- confusionMatrix(Model.dec.tree, testing$disease)$overall[["Accuracy"]]
+F1.dec.tree <- F_meas(Model.dec.tree, testing$disease)
+Prec.dec.tree <- Conf.dec.tree$byClass[c("Precision")]
+Prev.dec.tree <- Conf.dec.tree$byClass[c("Prevalence")]
+tibble(
+  Method=c("Decision tree"), 
+  Sensitivity=c(Sens.dec.tree),
+  Specificity=c(Spec.dec.tree),
+  Accuracy=c(Acc.dec.tree)
+  ) %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+```{r plot_Train.dec.tree, echo=FALSE}
+fancyRpartPlot(Train.dec.tree$finalModel, sub="")
+```
+
+\newpage
+
+## Random forest  
+
+* function: caret::train 
+* method: rf 
+* preProcess: center, scale 
+* trControl: repeatedcv 
+* tuneLength: 10 
+* nTree: 2500 
+
+```{r Train.random.forest, include=FALSE}
+#train random forest
+Train.random.forest <- caret::train(disease ~ ., data=training,
+                             method="rf",
+                             preProcess=c("center","scale"),
+                             tuneLength=10,
+                             trControl=control.repeat,
+                             nTree=2500,
+                             na.action=na.exclude)
+#apply model on testing
+Model.random.forest <- predict(Train.random.forest, testing, type="raw")
+Model.random.forest.roc <- predict(Train.random.forest, testing, type="prob")
+#confMatrix
+Conf.random.forest <- confusionMatrix(Model.random.forest, testing$disease)
+```
+
+```{r print_Conf.random.forest2, echo=FALSE}
+Conf.random.forest$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Sens.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$byClass[c("Sensitivity")]
+Spec.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$byClass[c("Specificity")]
+Acc.random.forest <- confusionMatrix(Model.random.forest, testing$disease)$overall[["Accuracy"]]
+F1.random.forest <- F_meas(Model.random.forest, testing$disease)
+Prec.random.forest <- Conf.random.forest$byClass[c("Precision")]
+Prev.random.forest <- Conf.random.forest$byClass[c("Prevalence")]
+tibble(
+  Method=c("Random forest"), 
+  Sensitivity=c(Sens.random.forest),
+  Specificity=c(Spec.random.forest),
+  Accuracy=c(Acc.random.forest)
+  ) %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+```{r varImp_Train.random.forest, echo=FALSE, comment=NA}
+varImp(Train.random.forest)
+```
+
+\newpage
+
+## Support vector machine  
+
+* function: caret::train 
+* method: svmLinear 
+* preProcess: center, scale 
+* trControl: repeatedcv 
+* tuneLength: 5 
+
+```{r train.svmLinear, include=FALSE, warning=FALSE}
+#train svmLinear
+Train.svmLinear <- caret::train(disease ~ ., data=training,
+                         method = "svmLinear",
+                         trControl= control.repeat,
+                         preProcess=c("center",
+                                      "scale"),
+                         # tuneGrid=expand.grid(C=1)
+                         tuneLength=5,
+                         na.action=na.exclude)
+#apply model on testing
+Model.svmLinear <- predict(Train.svmLinear, testing, type="raw")
+Model.svmLinear.roc <- predict(Train.svmLinear, testing, type="prob")
+#confMatrix
+Conf.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)
+```
+
+```{r print_Conf.svmLinear, echo=FALSE}
+Conf.svmLinear$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Sens.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$byClass[c("Sensitivity")]
+Spec.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$byClass[c("Specificity")]
+Acc.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$overall[["Accuracy"]]
+F1.svmLinear <- F_meas(Model.svmLinear, testing$disease)
+Prec.svmLinear <- Conf.svmLinear$byClass[c("Precision")]
+Prev.svmLinear <- Conf.svmLinear$byClass[c("Prevalence")]
+tibble(
+  Method=c("Svm linear"), 
+  Sensitivity=c(Sens.svmLinear),
+  Specificity=c(Spec.svmLinear),
+  Accuracy=c(Acc.svmLinear)
+  ) %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+\newpage
+
+## K-nearest neighbors  
+
+* function: caret::train 
+* method: knn 
+* trControl: repeatedcv 
+* tuneLength: 3 
+* final k-value: 7
+
+```{r Train.knn, include=FALSE}
+Train.knn <- caret::train(disease.no.disease~., data=training.onehot,
+                   method="knn",
+                   trControl=control.repeat,
+                   # tuneGrid=expand.grid(k=5)
+                   tuneLength=3,
+                   na.action=na.exclude)
+#apply model on testing
+Model.knn <- predict(Train.knn, testing.onehot, type="raw")
+Model.knn.roc <- predict(Train.knn, testing.onehot, type="prob")
+#confMatrix
+Conf.knn <- confusionMatrix(Model.knn, testing.onehot$disease)
+```
+
+```{r print_Conf.knn, echo=FALSE}
+Conf.knn$table %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+Sens.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$byClass[c("Sensitivity")]
+Spec.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$byClass[c("Specificity")]
+Acc.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$overall[["Accuracy"]]
+F1.knn <- F_meas(Model.knn, testing.onehot$disease)
+Prec.knn <- Conf.knn$byClass[c("Precision")]
+Prev.knn <- Conf.knn$byClass[c("Prevalence")]
+tibble(
+  Method=c("K-nearest neighbors"), 
+  Sensitivity=c(Sens.knn),
+  Specificity=c(Spec.knn),
+  Accuracy=c(Acc.knn)
+  ) %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+\newpage
+
+# Results/Evaluation metrics  
+* **metrics:** 
+    + **confusion matrix (derivations)** 
+    + **roc-curve (receiver operating characteristic) & auc (area under curve)** 
+
+## confusion matrix (derivations)  
+
+```{r evaluation.metrics, echo=FALSE, message=FALSE}
+tibble("Method"=c("Logistic regression",
+                "Decision tree", 
+                "Random forest", 
+                "Support vector machine (linear)",
+                "k-nearest neighbors"),
+       "Sensitivity/Recall"=c(
+         Sens.glm,
+         Sens.dec.tree,
+         Sens.random.forest,
+         Sens.svmLinear,
+         Sens.knn
+       ),
+       "Specificity"=c(
+         Spec.glm,
+         Spec.dec.tree,
+         Spec.random.forest,
+         Spec.svmLinear,
+         Spec.knn
+         ),
+       "Accuracy"=c(Acc.glm,
+           Acc.dec.tree,
+           Acc.random.forest, 
+           Acc.svmLinear,
+           Acc.knn
+           ),
+      "F1-score"=c(F1.glm,
+          F1.dec.tree,
+          F1.random.forest,
+          F1.svmLinear,
+          F1.knn),
+      "Precision"=c(Prec.glm,
+                  Prec.dec.tree,
+                  Prec.random.forest,
+                  Prec.svmLinear,
+                  Prec.knn)
+) %>%
+  knitr::kable() %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+```
+
+## roc-curve and auc  
+
+```{r roc.glm, echo=FALSE, message=FALSE, comment=NA}
+#ROC-curve (roc.curve)
+par(pty="s")
+pROC::roc(response=testing$disease,
+          predictor=Model.glm.roc$disease,
+          plot=TRUE,
+          print.auc=TRUE,
+          print.auc.x=30,
+          print.auc.y=68,
+          # partial.auc=c(100, 80),
+          legacy.axes=TRUE,
+          percent=TRUE,
+          xlab="False Positive Rate",
+          ylab="True Positive Rate",
+          col="#32a89e",
+          lwd=3)
+pROC::plot.roc(testing$disease,
+               Model.dec.tree.roc$disease,
+               print.auc=TRUE,
+               print.auc.x=30,
+               print.auc.y=62,
+               percent=TRUE,
+               add=TRUE,
+               col="#3267a8",
+               lwd=3)
+pROC::plot.roc(testing$disease,
+               Model.random.forest.roc$disease,
+               print.auc=TRUE,
+               print.auc.x=30,
+               print.auc.y=56,
+               percent=TRUE,
+               add=TRUE,
+               col="#3d2cab",
+               lwd=3)
+pROC::plot.roc(testing$disease,
+               Model.svmLinear.roc$disease,
+               print.auc=TRUE,
+               print.auc.x=30,
+               print.auc.y=50,
+               percent=TRUE,
+               add=TRUE,
+               col="#a625b8",
+               lwd=3)
+pROC::plot.roc(testing.onehot$disease.no.disease,
+               Model.knn.roc$disease,
+               print.auc=TRUE,
+               print.auc.x=30,
+               print.auc.y=44,
+               percent=TRUE,
+               add=TRUE,
+               col="#c91e5a",
+               lwd=3)
+legend("bottomright",
+       legend=c("log. regression", 
+                "decision tree", 
+                "random forest", 
+                "svm"
+                ,"knn"),
+       col=c("#32a89e", 
+             "#3267a8", 
+             "#3d2cab", 
+             "#a625b8"
+             ,"#c91e5a"),
+       lwd=3)
+par(pty="m")
+```

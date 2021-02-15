@@ -8,15 +8,17 @@ The data that was used can be found at [Kaggle](https://www.kaggle.com/ronitf/he
 
 ## Files
 
-* Report:
-	* Heart_Science.pdf (pdf version of the report)
-* Script:
+* **Report:**
+	* heart_science_compact.pdf (**compact** pdf version of the report)
+	* heart_science_extended.pdf (**extended** pdf version of the report)
+* **Script:**
 	* Heart_Science.R (R script)
-* R Markdown:
-	* Heart_Science.Rmd
-* data (folder):
+* **R Markdown:**
+	* heart_science_compact.Rmd
+	* heart_science_extended.Rmd
+* **data (folder):**
 	* heartdata_processed.csv (processed dataset for tableau usage)
 	* heartdata.csv (used dataset)
 	* processed_cleveland.csv (original dataset)
-* resources (folder):
+* **resources (folder):**
 	* title.csv
