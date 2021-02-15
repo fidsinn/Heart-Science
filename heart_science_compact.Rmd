@@ -419,11 +419,11 @@ set.seed(50866)
 ```
 
 ```{r dataPartition, include=FALSE, warning=FALSE}
-test_index <- createDataPartition(y = HeartData$disease,
+training_index <- createDataPartition(y = HeartData$disease,
                                   p = 0.7,
                                   list = FALSE)
-training <- HeartData[test_index,]
-testing <- HeartData[-test_index,]
+training <- HeartData[training_index,]
+testing <- HeartData[-training_index,]
 
 levels(training$disease) <- c("disease", "no disease")
 training$disease <- factor(training$disease, 
@@ -575,7 +575,7 @@ Train.random.forest <- caret::train(disease ~ ., data=training,
                              preProcess=c("center","scale"),
                              tuneLength=10,
                              trControl=control.repeat,
-                             nTree=2500,
+                             nTree=2000,
                              na.action=na.exclude)
 #apply model on testing
 Model.random.forest <- predict(Train.random.forest, testing, type="raw")
@@ -639,9 +639,9 @@ Conf.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)
 Conf.svmLinear$table %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
-Sens.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$byClass[c("Sensitivity")]
-Spec.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$byClass[c("Specificity")]
-Acc.svmLinear <- confusionMatrix(Model.svmLinear, testing$disease)$overall[["Accuracy"]]
+Sens.svmLinear <- Conf.svmLinear$byClass[c("Sensitivity")]
+Spec.svmLinear <- Conf.svmLinear$byClass[c("Specificity")]
+Acc.svmLinear <- Conf.svmLinear$overall[["Accuracy"]]
 F1.svmLinear <- F_meas(Model.svmLinear, testing$disease)
 Prec.svmLinear <- Conf.svmLinear$byClass[c("Precision")]
 Prev.svmLinear <- Conf.svmLinear$byClass[c("Prevalence")]
@@ -683,9 +683,9 @@ Conf.knn <- confusionMatrix(Model.knn, testing.onehot$disease)
 Conf.knn$table %>%
   knitr::kable() %>% 
   kableExtra::kable_styling(full_width = FALSE)
-Sens.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$byClass[c("Sensitivity")]
-Spec.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$byClass[c("Specificity")]
-Acc.knn <- confusionMatrix(Model.knn, testing.onehot$disease)$overall[["Accuracy"]]
+Sens.knn <- Conf.knn$byClass[c("Sensitivity")]
+Spec.knn <- Conf.knn$byClass[c("Specificity")]
+Acc.knn <- Conf.knn$overall[["Accuracy"]]
 F1.knn <- F_meas(Model.knn, testing.onehot$disease)
 Prec.knn <- Conf.knn$byClass[c("Precision")]
 Prev.knn <- Conf.knn$byClass[c("Prevalence")]

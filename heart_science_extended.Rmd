@@ -632,11 +632,11 @@ set.seed(50866)
 
 The data will be partitioned into two sets of 70% of the data for training and 30% of the data for testing.  
 ```{r dataPartition, echo=TRUE, warning=FALSE}
-test_index <- createDataPartition(y = HeartData$disease,
+training_index <- createDataPartition(y = HeartData$disease,
                                   p = 0.7,
                                   list = FALSE)
-training <- HeartData[test_index,]
-testing <- HeartData[-test_index,]
+training <- HeartData[training_index,]
+testing <- HeartData[-training_index,]
 
 levels(training$disease) <- c("disease", "no disease")
 training$disease <- factor(training$disease, 
@@ -684,7 +684,7 @@ testing.onehot$disease.disease <- NULL
 
 ## Logistic regression  
 Because the heart disease dataset is a categorical problem we choose the logistic regression as the first modeling approach. **Binomial** as the **'family'**-parameter indicates that the generalized linear model method is logistic regression.  
-```{r Train.glm, echo=TRUE}
+```{r Train.glm, echo=TRUE, warning=FALSE}
 #train logistic regression (generalized linear model)
 Train.glm <- caret::train(disease ~ ., data=training,
                    method="glm",
@@ -737,10 +737,6 @@ Model.dec.tree <- predict(Train.dec.tree, testing, type="raw")
 #confMatrix
 Conf.dec.tree <- confusionMatrix(table(Model.dec.tree, testing$disease))
 ```
-
-* 74.10% of patients would have been diagnosed correctly to have heart disease (sensitivity)
-* 81.20% of patients would have been diagnosed correctly to have no heart disease (specificity)
-* The overall accuracy of the decision tree is 78.00%.  
 
 ```{r print_Conf.dec.tree, echo=FALSE}
 Conf.dec.tree$table %>%
@@ -841,17 +837,19 @@ dotplot(results, ylab="nTree")
 ```
 
 So we correct the amount of trees upwards.
-```{r Train.random.forest.NEW, echo=TRUE}
+```{r Train.random.forest.NEW, echo=TRUE, warning=FALSE}
+#train random forest
 Train.random.forest <- caret::train(disease ~ ., data=training,
                              method="rf",
-                             trControl=control.repeat,
-                             ntree=2000,
+                             preProcess=c("center","scale"),
                              tuneLength=10,
-                             # tuneGrid = data.frame(mtry = sqrt(ncol(training))),
-                             na.action=na.exclude
-)
+                             trControl=control.repeat,
+                             nTree=2000,
+                             na.action=na.exclude)
+#apply model on testing
 Model.random.forest <- predict(Train.random.forest, testing, type="raw")
 Model.random.forest.roc <- predict(Train.random.forest, testing, type="prob")
+#confMatrix
 Conf.random.forest <- confusionMatrix(Model.random.forest, testing$disease)
 ```
 
@@ -968,7 +966,7 @@ tibble(
 With different models passed through there is now a bunch of metrics by which we can justify what model is the best to use for the heart disease problem. Besides collecting standard measures for evaluating different models for the problem, we have to take a closer look on the problem itself and its sector of use and consequences of using the model in order to treat patients right.  
 
 Usually the focus of prediction approaches in the medical field should be on **reducing false negative results** to prevent overlooking diseases of a patient. Therefore receiving false negative cases is worse than receiving false positive cases. With this approach we will assess the different models.  
-**Sensitivity/Recall** also called true positive rate provides information about how precise the model is in order of finding all patients with heart disease. We can see that the **logistic regression** as well as the **random forest** have the highest sensitivities of **90.0% (87.5%)** which means, that around nine out of ten patients that have heart disease were diagnosed correctly. **K-nearest neighbors** estimate shows a poor result for sensitivity of **62.5%**, only diagnosing six out of ten patients correctly. In terms of **specificity**, all methods except of **decision tree** show a good result.  
+**Sensitivity/Recall** also called true positive rate provides information about how precise the model is in order of finding all patients with heart disease. We can see that the **logistic regression** as well as the **random forest** have the highest sensitivities of **90.0%** which means, that around nine out of ten patients that have heart disease were diagnosed correctly. **K-nearest neighbors** estimate shows a poor result for sensitivity of **62.5%**, only diagnosing six out of ten patients correctly. In terms of **specificity**, all methods except of **decision tree** show a good result.  
 **Logistic regression, random forest and support vector machine** are the only methods that show an **overall accuracy** **over 80.0%** as well as a **F1-score** **over 80.0%**.  
 With a focus on keeping false negative cases as low as possible **logistic regression** and **support vector machine** bring solid metric values **over 85.0%** in every single metric.  
 ```{r evaluation.metrics, echo=FALSE, message=FALSE}
